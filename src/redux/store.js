@@ -6,6 +6,7 @@ import followupReducer from './slices/followupSlice';
 import taskReducer from './slices/taskSlice';
 import counselorReducer from './slices/counselorSlice';
 import applicationReducer from './slices/applicationSlice';
+import educationReducer from './slices/educationSlice';
 
 const store = configureStore({
   reducer: {
@@ -16,6 +17,7 @@ const store = configureStore({
     tasks: taskReducer,
     counselors: counselorReducer,
     applications: applicationReducer,
+    education: educationReducer,
   },
 });
 

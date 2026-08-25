@@ -1,0 +1,72 @@
+export const UNIVERSITY_TYPES = [
+  'GOVERNMENT',
+  'PRIVATE',
+  'DEEMED',
+  'CENTRAL',
+  'STATE',
+  'OTHER',
+];
+
+export const COURSE_LEVELS = [
+  'CERTIFICATE',
+  'DIPLOMA',
+  'UNDERGRADUATE',
+  'POSTGRADUATE',
+  'DOCTORATE',
+];
+
+export const DURATION_UNITS = ['MONTHS', 'YEARS', 'SEMESTERS'];
+
+export const ENTITY_STATUSES = ['ACTIVE', 'INACTIVE'];
+
+export const FEE_TYPES = [
+  { value: 'SEMESTER', label: 'Semester Wise' },
+  { value: 'YEAR', label: 'Year Wise' },
+];
+
+export const FEE_NATURES = [
+  { value: 'RECURRING', label: 'Recurring' },
+  { value: 'ONE_TIME', label: 'One-time' },
+];
+
+export const PAGE_SIZE = 10;
+
+export const formatCurrency = (value) => {
+  if (value == null || value === '') return '—';
+  const num = Number(value);
+  if (Number.isNaN(num)) return '—';
+  return `₹${num.toLocaleString('en-IN')}`;
+};
+
+export const formatLabel = (value) => {
+  if (!value) return '—';
+  return String(value).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+export const toNumber = (value, fallback = 0) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+};
+
+export const calcItemTotal = (item = {}) =>
+  toNumber(item.tuitionFee)
+  + toNumber(item.admissionFee)
+  + toNumber(item.examFee)
+  + toNumber(item.registrationFee)
+  + toNumber(item.otherFee);
+
+export const calcStructureTotal = (items = []) =>
+  items.reduce((sum, item) => sum + calcItemTotal(item), 0);
+
+export const emptyFeeItem = (periodNumber = 1, periodType = 'semester') => ({
+  periodNumber,
+  periodType,
+  tuitionFee: '',
+  admissionFee: '',
+  examFee: '',
+  registrationFee: '',
+  otherFee: '',
+  totalFee: 0,
+  feeNature: 'RECURRING',
+  isRefundable: false,
+});

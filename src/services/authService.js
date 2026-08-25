@@ -1,8 +1,10 @@
-import api from './api';
+import { PREVIEW_USER } from '../redux/slices/authSlice';
+
+const ok = (user = PREVIEW_USER) => Promise.resolve({ data: { user } });
 
 export const authService = {
-  login: (data) => api.post('/auth/login', data),
-  register: (data) => api.post('/auth/register', data),
-  logout: () => api.post('/auth/logout'),
-  me: () => api.get('/auth/me'),
+  login: () => ok(),
+  register: () => ok(),
+  logout: () => ok(),
+  me: () => ok(),
 };

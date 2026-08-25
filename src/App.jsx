@@ -1,8 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import ProtectedRoute from './routes/ProtectedRoute';
 import CRMLayout from './layouts/CRMLayout';
-import Login from './pages/auth/Login';
 import CRMDashboard from './pages/crm/CRMDashboard';
 import Leads from './pages/crm/Leads';
 import LeadDetails from './pages/crm/LeadDetails';
@@ -13,22 +11,22 @@ import Applications from './pages/crm/Applications';
 import Admissions from './pages/crm/Admissions';
 import Activities from './pages/crm/Activities';
 import Reports from './pages/crm/Reports';
+import EducationDashboard from './pages/education/EducationDashboard';
+import Universities from './pages/education/Universities';
+import UniversityDetails from './pages/education/UniversityDetails';
+import Courses from './pages/education/Courses';
+import CourseDetails from './pages/education/CourseDetails';
+import Specializations from './pages/education/Specializations';
+import CourseFees from './pages/education/CourseFees';
 
 export default function App() {
   return (
     <BrowserRouter>
       <Toaster position="top-right" />
       <Routes>
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={<Navigate to="/crm" replace />} />
         <Route path="/" element={<Navigate to="/crm" replace />} />
-        <Route
-          path="/crm"
-          element={
-            <ProtectedRoute>
-              <CRMLayout />
-            </ProtectedRoute>
-          }
-        >
+        <Route path="/crm" element={<CRMLayout />}>
           <Route index element={<CRMDashboard />} />
           <Route path="leads" element={<Leads />} />
           <Route path="leads/:id" element={<LeadDetails />} />
@@ -39,6 +37,13 @@ export default function App() {
           <Route path="admissions" element={<Admissions />} />
           <Route path="activities" element={<Activities />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="education" element={<EducationDashboard />} />
+          <Route path="education/universities" element={<Universities />} />
+          <Route path="education/universities/:id" element={<UniversityDetails />} />
+          <Route path="education/courses" element={<Courses />} />
+          <Route path="education/courses/:id" element={<CourseDetails />} />
+          <Route path="education/specializations" element={<Specializations />} />
+          <Route path="education/fees" element={<CourseFees />} />
         </Route>
         <Route path="*" element={<Navigate to="/crm" replace />} />
       </Routes>
