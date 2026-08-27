@@ -646,20 +646,37 @@ const mapUniversity = (row = {}) => ({
 });
 
 const mapCourse = (row = {}) => ({
-  id: row.id,
+  id: row.id || row.uuid,
+  uuid: row.uuid,
   universityId: row.universityId || row.university_id,
   universityName: row.universityName || row.university_name || '',
+  universityCode: row.universityCode || row.university_code || '',
   name: row.name,
   code: row.code || row.degree || '',
   degree: row.degree || row.level || '',
   level: row.level || row.degree || '',
   duration: row.duration || '',
-  durationUnit: row.durationUnit || 'YEARS',
+  durationUnit: row.durationUnit || row.duration_unit || 'YEARS',
+  numberOfSemesters: row.numberOfSemesters,
+  numberOfYears: row.numberOfYears,
   description: row.description || '',
   eligibility: row.eligibility || '',
   status: row.status || 'ACTIVE',
   createdAt: row.createdAt || row.created_at,
   updatedAt: row.updatedAt || row.updated_at,
+});
+
+const toCoursePayload = (data) => ({
+  university_id: data.universityId || data.university_id,
+  name: data.name,
+  code: data.code,
+  degree: data.degree || data.level || data.code,
+  level: data.level,
+  duration: data.duration,
+  duration_unit: data.durationUnit || data.duration_unit || 'YEARS',
+  description: data.description,
+  eligibility: data.eligibility,
+  status: data.status,
 });
 
 const unwrapList = (payload, key) => {
@@ -753,17 +770,15 @@ const liveCourseService = {
     return { data: { course } };
   },
   create: async (data) => {
-    const res = await api.post('/academic/courses', {
-      university_id: data.universityId || data.university_id,
-      name: data.name,
-      degree: data.degree || data.level || data.code,
-      duration: data.durationUnit ? `${data.duration} ${data.durationUnit}` : data.duration,
-      description: data.description,
-    });
+    const res = await api.post('/academic/courses', toCoursePayload(data));
     const course = mapCourse(res.data.course || res.data.data);
     return { data: { course } };
   },
-  update: (id, data) => api.put(`/academic/courses/${id}`, data),
+  update: async (id, data) => {
+    const res = await api.put(`/academic/courses/${id}`, toCoursePayload(data));
+    const course = mapCourse(res.data.course || res.data.data);
+    return { data: { course } };
+  },
   delete: (id) => api.delete(`/academic/courses/${id}`),
 };
 

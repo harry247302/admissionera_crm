@@ -69,7 +69,7 @@ export default function Courses() {
 
   const handleUpdate = async (data) => {
     try {
-      await dispatch(updateCourse({ id: editItem.id, data })).unwrap();
+      await dispatch(updateCourse({ id: editItem.uuid || editItem.id, data })).unwrap();
       toast.success('Course updated');
       setEditItem(null);
       dispatch(fetchCourses({ ...filters, page, limit: PAGE_SIZE }));
@@ -80,7 +80,7 @@ export default function Courses() {
 
   const handleDelete = async () => {
     try {
-      await dispatch(deleteCourse(deleteTarget.id)).unwrap();
+      await dispatch(deleteCourse(deleteTarget.uuid || deleteTarget.id)).unwrap();
       toast.success('Course deleted');
       setDeleteTarget(null);
       dispatch(fetchCourses({ ...filters, page, limit: PAGE_SIZE }));

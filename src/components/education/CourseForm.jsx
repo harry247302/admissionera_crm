@@ -30,7 +30,7 @@ export default function CourseForm({ defaultValues, universities = [], onSubmit,
   return (
     <form onSubmit={handleSubmit((data) => onSubmit({
       ...data,
-      universityId: Number(data.universityId),
+      universityId: data.universityId,
       duration: Number(data.duration) || 0,
       numberOfSemesters: Number(data.numberOfSemesters) || 0,
       numberOfYears: Number(data.numberOfYears) || 0,

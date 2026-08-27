@@ -47,8 +47,8 @@ export default function CourseTable({
             </tr>
           </thead>
           <tbody>
-            {courses.map((c) => (
-              <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
+            {courses.map((c, index) => (
+              <tr key={c.id || c.uuid || `${c.name}-${index}`} className="border-b border-slate-100 hover:bg-slate-50">
                 <td className="px-4 py-3">
                   <button type="button" className="text-left font-medium text-slate-900 hover:text-brand-600" onClick={() => onView?.(c)}>
                     {c.name}
@@ -81,8 +81,8 @@ export default function CourseTable({
       </div>
 
       <div className="space-y-3 lg:hidden">
-        {courses.map((c) => (
-          <div key={c.id} className="card space-y-2">
+        {courses.map((c, index) => (
+          <div key={c.id || c.uuid || `${c.name}-${index}`} className="card space-y-2">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-medium">{c.name}</p>
