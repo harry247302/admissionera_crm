@@ -1,89 +1,92 @@
 import { useEffect } from 'react';
-import { useForm, Controller, useWatch } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import FormField from './FormField';
-import UniversitySelect from './UniversitySelect';
-import CourseSelect from './CourseSelect';
-import { ENTITY_STATUSES, formatLabel } from '../../utils/educationConstants';
+import { DURATION_UNITS, ENTITY_STATUSES, formatLabel } from '../../utils/educationConstants';
 
-export default function SpecializationForm({
-  defaultValues,
-  universities = [],
-  courses = [],
-  onUniversityChange,
-  onSubmit,
-  loading,
-  onCancel,
-}) {
-  const { register, handleSubmit, control, setValue, formState: { errors } } = useForm({
+const slugify = (value) =>
+  String(value)
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+export default function SpecializationForm({ defaultValues, onSubmit, loading, onCancel }) {
+  const isEditing = Boolean(defaultValues?.uuid || defaultValues?.id);
+
+  const { register, handleSubmit, setValue, control, formState: { errors } } = useForm({
     defaultValues: {
       status: 'ACTIVE',
+      durationUnit: 'YEARS',
+      duration: '',
+      slug: '',
+      shortName: '',
+      overview: '',
+      admissionRequirements: '',
+      careerOpportunities: '',
       ...defaultValues,
-      universityId: defaultValues?.universityId || '',
-      courseId: defaultValues?.courseId || '',
+      shortName: defaultValues?.shortName || defaultValues?.short_name || '',
+      durationUnit: defaultValues?.durationUnit || defaultValues?.duration_unit || 'YEARS',
+      admissionRequirements:
+        defaultValues?.admissionRequirements || defaultValues?.admission_requirements || '',
+      careerOpportunities:
+        defaultValues?.careerOpportunities || defaultValues?.career_opportunities || '',
+      status:
+        defaultValues?.status
+        || (defaultValues?.is_active === false ? 'INACTIVE' : 'ACTIVE'),
     },
   });
 
-  const universityId = useWatch({ control, name: 'universityId' });
+  const name = useWatch({ control, name: 'name' });
 
   useEffect(() => {
-    onUniversityChange?.(universityId);
-  }, [universityId, onUniversityChange]);
+    if (isEditing || !name) return;
+    setValue('slug', slugify(name));
+  }, [name, isEditing, setValue]);
 
   return (
     <form
       onSubmit={handleSubmit((data) => onSubmit({
         ...data,
-        universityId: Number(data.universityId),
-        courseId: Number(data.courseId),
+        duration: data.duration === '' || data.duration == null ? null : Number(data.duration),
       }))}
       className="space-y-5"
     >
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-        Select a university first. Courses will load only for that university, then attach the specialization to the chosen course.
+        Create a specialization in the catalog. Assign it to universities and courses from their respective pages.
       </div>
-
-      <FormField label="University *" error={errors.universityId?.message}>
-        <Controller
-          name="universityId"
-          control={control}
-          rules={{ required: 'Select a university' }}
-          render={({ field }) => (
-            <UniversitySelect
-              universities={universities}
-              value={field.value}
-              error={Boolean(errors.universityId)}
-              onChange={(val) => {
-                field.onChange(val);
-                setValue('courseId', '');
-              }}
-            />
-          )}
-        />
-      </FormField>
-
-      <FormField label="Course *" error={errors.courseId?.message}>
-        <Controller
-          name="courseId"
-          control={control}
-          rules={{ required: 'Select a course' }}
-          render={({ field }) => (
-            <CourseSelect
-              courses={courses}
-              universityId={universityId}
-              value={field.value}
-              onChange={field.onChange}
-              error={Boolean(errors.courseId)}
-            />
-          )}
-        />
-      </FormField>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField label="Specialization Name *" error={errors.name?.message}>
-          <input className="input" placeholder="e.g. Finance" {...register('name', { required: 'Name is required' })} />
+          <input
+            className="input"
+            placeholder="e.g. Computer Science"
+            {...register('name', { required: 'Name is required' })}
+          />
         </FormField>
-        <FormField label="Specialization Code *" error={errors.code?.message}>
-          <input className="input uppercase" placeholder="e.g. MBA-FIN" {...register('code', { required: 'Code is required' })} />
+        <FormField label="Slug *" error={errors.slug?.message}>
+          <input
+            className="input lowercase"
+            placeholder="e.g. computer-science"
+            {...register('slug', { required: 'Slug is required' })}
+          />
+        </FormField>
+        <FormField label="Code" error={errors.code?.message}>
+          <input className="input uppercase" placeholder="e.g. CS" {...register('code')} />
+        </FormField>
+        <FormField label="Short Name">
+          <input className="input" placeholder="e.g. CS" {...register('shortName')} />
+        </FormField>
+        <FormField label="Duration">
+          <input type="number" min="0" step="0.5" className="input" {...register('duration')} />
+        </FormField>
+        <FormField label="Duration Unit">
+          <select className="input" {...register('durationUnit')}>
+            <option value="">Select unit</option>
+            {DURATION_UNITS.map((unit) => (
+              <option key={unit} value={unit}>{formatLabel(unit)}</option>
+            ))}
+          </select>
         </FormField>
         <FormField label="Status">
           <select className="input" {...register('status')}>
@@ -95,14 +98,23 @@ export default function SpecializationForm({
       <FormField label="Description">
         <textarea className="input min-h-[80px]" rows={3} {...register('description')} />
       </FormField>
+      <FormField label="Overview">
+        <textarea className="input min-h-[80px]" rows={3} {...register('overview')} />
+      </FormField>
       <FormField label="Eligibility">
         <textarea className="input min-h-[80px]" rows={3} {...register('eligibility')} />
+      </FormField>
+      <FormField label="Admission Requirements">
+        <textarea className="input min-h-[80px]" rows={3} {...register('admissionRequirements')} />
+      </FormField>
+      <FormField label="Career Opportunities">
+        <textarea className="input min-h-[80px]" rows={3} {...register('careerOpportunities')} />
       </FormField>
 
       <div className="flex justify-end gap-3">
         {onCancel && <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>}
         <button type="submit" className="btn-primary" disabled={loading}>
-          {loading ? 'Saving...' : defaultValues?.id ? 'Update Specialization' : 'Save Specialization'}
+          {loading ? 'Saving...' : isEditing ? 'Update Specialization' : 'Save Specialization'}
         </button>
       </div>
     </form>

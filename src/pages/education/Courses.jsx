@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Search, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
-  fetchCourses, fetchUniversityOptions, createCourse, updateCourse, deleteCourse, setCourseFilters,
+  fetchCourses, fetchUniversityOptions, createCourse, updateCourse, deleteCourse,
+  createFeeStructure, setCourseFilters,
 } from '../../redux/slices/educationSlice';
 import CourseTable from '../../components/education/CourseTable';
 import CourseForm from '../../components/education/CourseForm';
@@ -15,6 +16,12 @@ import Modal, { ConfirmDialog } from '../../components/common/Modal';
 import { SkeletonTable } from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
 import { COURSE_LEVELS, ENTITY_STATUSES, PAGE_SIZE, formatLabel } from '../../utils/educationConstants';
+import {
+  academicCourseService,
+  academicSpecializationService,
+  toSpecializationPayload,
+} from '../../services/educationService';
+import { buildFeeStructurePayload } from '../../components/education/courseWizard/courseWizardUtils';
 
 export default function Courses() {
   const dispatch = useDispatch();
@@ -56,25 +63,177 @@ export default function Courses() {
     }
   };
 
+  const resolveUniversity = (courseData, universityUuid) => {
+    const university = universityOptions.find(
+      (u) => String(u.id) === String(courseData.universityId)
+    );
+    return {
+      university,
+      universityUuid: universityUuid || university?.uuid,
+    };
+  };
+
+  const createAndLinkSpecializations = async (specializations, courseUuid) => {
+    const updatedSpecs = [];
+    const specializationUuids = [];
+
+    for (const item of specializations) {
+      if (item.savedUuid) {
+        specializationUuids.push(String(item.savedUuid));
+        updatedSpecs.push(item);
+        continue;
+      }
+
+      const payload = toSpecializationPayload({
+        name: item.name,
+        slug: item.slug,
+        code: item.code,
+        description: item.description,
+        status: item.status || 'ACTIVE',
+      });
+
+      const created = await academicSpecializationService.create(payload);
+      const specUuid = created.data?.specialization?.uuid;
+      if (!specUuid) continue;
+
+      specializationUuids.push(specUuid);
+      updatedSpecs.push({ ...item, savedUuid: specUuid });
+    }
+
+    const uniqueUuids = [...new Set(specializationUuids)];
+    if (uniqueUuids.length) {
+      await academicCourseService.createCourseSpecializations({
+        course_uuid: courseUuid,
+        specialization_uuids: uniqueUuids,
+      });
+    }
+
+    return updatedSpecs;
+  };
+
+  const handleWizardSubmit = async (payload) => {
+    const { phase, course, specializations = [], fees, courseUuid, universityUuid } = payload;
+
+    if (phase === 'draft-create') {
+      const created = await dispatch(createCourse(course)).unwrap();
+      return {
+        courseUuid: created?.uuid || created?.id,
+        courseId: created?.id || created?.uuid,
+      };
+    }
+
+    if (phase === 'draft-update') {
+      await dispatch(updateCourse({
+        id: courseUuid,
+        data: course,
+      })).unwrap();
+      return { courseUuid, courseId: payload.courseId || courseUuid };
+    }
+
+    if (phase === 'save-specializations') {
+      if (!courseUuid) {
+        throw new Error('Course must be saved before adding specializations');
+      }
+      const validSpecs = specializations.filter((item) => item.name?.trim());
+      const updated = await createAndLinkSpecializations(validSpecs, courseUuid);
+      toast.success('Specializations saved and linked to course');
+      return { specializations: updated };
+    }
+
+    if (phase === 'final') {
+      let courseRecord;
+
+      if (courseUuid) {
+        courseRecord = await dispatch(updateCourse({ id: courseUuid, data: course })).unwrap();
+      } else {
+        courseRecord = await dispatch(createCourse(course)).unwrap();
+      }
+
+      const finalCourseUuid = courseRecord?.uuid || courseRecord?.id || courseUuid;
+      const finalCourseId = courseRecord?.id || courseRecord?.uuid || payload.courseId;
+
+      const pendingSpecs = specializations.filter((item) => item.name?.trim() && !item.savedUuid);
+      if (finalCourseUuid && pendingSpecs.length) {
+        await createAndLinkSpecializations(
+          specializations.filter((item) => item.name?.trim()),
+          finalCourseUuid
+        );
+      }
+
+      if (fees && finalCourseId && course.universityId) {
+        try {
+          const feePayload = buildFeeStructurePayload(fees, finalCourseId, course.universityId);
+          await dispatch(createFeeStructure(feePayload)).unwrap();
+        } catch (feeErr) {
+          toast.error(typeof feeErr === 'string' ? feeErr : feeErr?.message || 'Course saved, but fee structure could not be saved');
+        }
+      }
+
+      toast.success('Course created successfully');
+      setShowForm(false);
+      dispatch(fetchCourses({ ...filters, page, limit: PAGE_SIZE }));
+      return { courseUuid: finalCourseUuid };
+    }
+
+    return null;
+  };
+
   const handleCreate = async (data) => {
     try {
-      await dispatch(createCourse(data)).unwrap();
+      if (data?.phase) {
+        return await handleWizardSubmit(data);
+      }
+
+      const { specializationUuids, universityUuid, ...courseData } = data;
+      const course = await dispatch(createCourse(courseData)).unwrap();
+      const { universityUuid: resolvedUniversityUuid } = resolveUniversity(courseData, universityUuid);
+      const courseUuid = course?.uuid || course?.id;
+
+      if (resolvedUniversityUuid && courseUuid && (specializationUuids || []).length) {
+        await academicCourseService.linkUniversityCourse({
+          university_uuid: resolvedUniversityUuid,
+          course_uuid: courseUuid,
+          specialization_uuids: specializationUuids,
+        });
+      }
+
       toast.success('Course created');
       setShowForm(false);
       dispatch(fetchCourses({ ...filters, page, limit: PAGE_SIZE }));
     } catch (err) {
-      toast.error(err);
+      toast.error(typeof err === 'string' ? err : err?.message || 'Failed to create course');
+      throw err;
     }
   };
 
   const handleUpdate = async (data) => {
     try {
-      await dispatch(updateCourse({ id: editItem.uuid || editItem.id, data })).unwrap();
+      if (data?.phase) {
+        return await handleWizardSubmit(data);
+      }
+
+      const { specializationUuids, universityUuid, ...courseData } = data;
+      const course = await dispatch(updateCourse({
+        id: editItem.uuid || editItem.id,
+        data: courseData,
+      })).unwrap();
+
+      const { universityUuid: resolvedUniversityUuid } = resolveUniversity(courseData, universityUuid);
+      const courseUuid = course?.uuid || course?.id || editItem.uuid || editItem.id;
+
+      if (resolvedUniversityUuid && courseUuid && (specializationUuids || []).length) {
+        await academicCourseService.linkUniversityCourse({
+          university_uuid: resolvedUniversityUuid,
+          course_uuid: courseUuid,
+          specialization_uuids: specializationUuids,
+        });
+      }
+
       toast.success('Course updated');
       setEditItem(null);
       dispatch(fetchCourses({ ...filters, page, limit: PAGE_SIZE }));
     } catch (err) {
-      toast.error(err);
+      toast.error(typeof err === 'string' ? err : err?.message || 'Failed to update course');
     }
   };
 
@@ -98,7 +257,7 @@ export default function Courses() {
             { label: 'Courses' },
           ]} />
           <h1 className="text-2xl font-bold text-slate-900">Course Management</h1>
-          <p className="text-sm text-slate-500">Courses must belong to a university. Select the institution first when creating a course.</p>
+          <p className="text-sm text-slate-500">Create courses with specializations and fee structures using the step-by-step wizard.</p>
         </div>
         <button className="btn-primary" onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4" /> Add Course
@@ -168,7 +327,13 @@ export default function Courses() {
       )}
 
       <Modal open={showForm} onClose={() => setShowForm(false)} title="Add Course" size="xl">
-        <CourseForm universities={universityOptions} onSubmit={handleCreate} loading={saving} onCancel={() => setShowForm(false)} />
+        <CourseForm
+          universities={universityOptions}
+          onSubmit={handleCreate}
+          loading={saving}
+          onCancel={() => setShowForm(false)}
+          wizardMode
+        />
       </Modal>
 
       <Modal open={!!editItem} onClose={() => setEditItem(null)} title="Edit Course" size="xl">
@@ -180,6 +345,7 @@ export default function Courses() {
             onSubmit={handleUpdate}
             loading={saving}
             onCancel={() => setEditItem(null)}
+            wizardMode={false}
           />
         )}
       </Modal>

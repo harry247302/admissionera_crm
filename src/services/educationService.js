@@ -148,7 +148,12 @@ function deactivateOtherFeeStructures(db, courseId, keepId) {
 
 function validateFeeItems(feeType, items) {
   if (!Array.isArray(items) || items.length === 0) {
-    mockError('Add at least one semester or year before saving the fee structure');
+    mockError('Add at least one fee period before saving the fee structure');
+  }
+  if (feeType === 'ONE_TIME') {
+    const total = calcItemTotal(items[0]);
+    if (total <= 0) mockError('One-time fee must be greater than zero');
+    return;
   }
   const periodType = feeType === 'YEAR' ? 'year' : 'semester';
   items.forEach((item, index) => {
@@ -413,20 +418,27 @@ const mockSpecializationService = {
   },
   async create(payload) {
     await delay();
-    if (!payload.universityId) mockError('University is required');
-    if (!payload.courseId) mockError('Course is required');
     if (!payload.name?.trim()) mockError('Specialization name is required');
-    if (!payload.code?.trim()) mockError('Specialization code is required');
     const db = loadDb();
-    const course = assertCourseUniversity(db, payload.universityId, payload.courseId);
+    const slug = String(payload.slug || payload.name)
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/[\s_-]+/g, '-');
     const spec = {
       id: nextId(db.specializations),
-      universityId: course.universityId,
-      courseId: course.id,
+      uuid: `mock-${nextId(db.specializations)}`,
       name: payload.name.trim(),
-      code: payload.code.trim().toUpperCase(),
+      slug,
+      code: payload.code?.trim().toUpperCase() || '',
+      shortName: payload.shortName?.trim() || '',
       description: payload.description?.trim() || '',
+      overview: payload.overview?.trim() || '',
       eligibility: payload.eligibility?.trim() || '',
+      admissionRequirements: payload.admissionRequirements?.trim() || '',
+      careerOpportunities: payload.careerOpportunities?.trim() || '',
+      duration: payload.duration ?? '',
+      durationUnit: payload.durationUnit || '',
       status: payload.status || 'ACTIVE',
       createdAt: nowIso(),
       updatedAt: nowIso(),
@@ -438,16 +450,13 @@ const mockSpecializationService = {
   async update(id, payload) {
     await delay();
     const db = loadDb();
-    const idx = db.specializations.findIndex((s) => s.id === Number(id));
+    const idx = db.specializations.findIndex(
+      (s) => String(s.id) === String(id) || String(s.uuid) === String(id)
+    );
     if (idx === -1) mockError('Specialization not found', 404);
-    const courseId = payload.courseId ? Number(payload.courseId) : db.specializations[idx].courseId;
-    const universityId = payload.universityId ? Number(payload.universityId) : db.specializations[idx].universityId;
-    const course = assertCourseUniversity(db, universityId, courseId);
     db.specializations[idx] = {
       ...db.specializations[idx],
       ...payload,
-      universityId: course.universityId,
-      courseId: course.id,
       name: payload.name?.trim() || db.specializations[idx].name,
       code: payload.code ? payload.code.trim().toUpperCase() : db.specializations[idx].code,
       updatedAt: nowIso(),
@@ -463,6 +472,26 @@ const mockSpecializationService = {
     db.specializations = db.specializations.filter((s) => s.id !== spec.id);
     saveDb(db);
     return { data: { id: spec.id } };
+  },
+  async getCatalog(params = {}) {
+    const res = await mockSpecializationService.getAll(params);
+    return {
+      data: {
+        specializations: (res.data.specializations || []).map((item) => ({
+          uuid: String(item.id),
+          name: item.name,
+          code: item.code,
+          slug: item.code?.toLowerCase(),
+        })),
+      },
+    };
+  },
+  async getUniversitySpecializations(_universityUuid) {
+    return { data: { specializations: [] } };
+  },
+  async assignToUniversity() {
+    await delay();
+    return { data: { success: true } };
   },
 };
 
@@ -510,18 +539,23 @@ const mockFeeService = {
     if (status === 'ACTIVE') deactivateOtherFeeStructures(db, course.id, structure.id);
     db.feeStructures.unshift(structure);
     payload.items.forEach((item, index) => {
+      const periodType = payload.feeType === 'ONE_TIME'
+        ? 'one_time'
+        : payload.feeType === 'YEAR'
+          ? 'year'
+          : 'semester';
       db.feeItems.push({
         id: nextId(db.feeItems),
         feeStructureId: structure.id,
         periodNumber: Number(item.periodNumber) || index + 1,
-        periodType: payload.feeType === 'YEAR' ? 'year' : 'semester',
+        periodType,
         tuitionFee: Number(item.tuitionFee) || 0,
         admissionFee: Number(item.admissionFee) || 0,
         examFee: Number(item.examFee) || 0,
         registrationFee: Number(item.registrationFee) || 0,
         otherFee: Number(item.otherFee) || 0,
         totalFee: calcItemTotal(item),
-        feeNature: item.feeNature || 'RECURRING',
+        feeNature: item.feeNature || (payload.feeType === 'ONE_TIME' ? 'ONE_TIME' : 'RECURRING'),
         isRefundable: Boolean(item.isRefundable),
       });
     });
@@ -634,6 +668,7 @@ const mockDashboardService = {
 
 const mapUniversity = (row = {}) => ({
   id: row.id,
+  uuid: row.uuid,
   name: row.name,
   code: row.code || row.short_name || '',
   type: row.type || '',
@@ -655,13 +690,18 @@ const mapCourse = (row = {}) => ({
   code: row.code || row.degree || '',
   degree: row.degree || row.level || '',
   level: row.level || row.degree || '',
-  duration: row.duration || '',
-  durationUnit: row.durationUnit || row.duration_unit || 'YEARS',
-  numberOfSemesters: row.numberOfSemesters,
-  numberOfYears: row.numberOfYears,
   description: row.description || '',
+  overview: row.overview || '',
   eligibility: row.eligibility || '',
-  status: row.status || 'ACTIVE',
+  curriculum: row.curriculum || '',
+  careerOpportunities: row.careerOpportunities || row.career_opportunities || '',
+  currency: row.currency || 'USD',
+  department: row.department || '',
+  faculty: row.faculty || '',
+  studyMode: row.studyMode || row.study_mode || '',
+  attendanceMode: row.attendanceMode || row.attendance_mode || '',
+  language: row.language || '',
+  status: row.status || (row.is_active === false ? 'INACTIVE' : 'ACTIVE'),
   createdAt: row.createdAt || row.created_at,
   updatedAt: row.updatedAt || row.updated_at,
 });
@@ -672,10 +712,51 @@ const toCoursePayload = (data) => ({
   code: data.code,
   degree: data.degree || data.level || data.code,
   level: data.level,
-  duration: data.duration,
-  duration_unit: data.durationUnit || data.duration_unit || 'YEARS',
   description: data.description,
+  overview: data.overview,
   eligibility: data.eligibility,
+  curriculum: data.curriculum,
+  career_opportunities: data.careerOpportunities || data.career_opportunities,
+  currency: data.currency || 'USD',
+  department: data.department,
+  faculty: data.faculty,
+  study_mode: data.studyMode || data.study_mode,
+  attendance_mode: data.attendanceMode || data.attendance_mode,
+  language: data.language,
+  status: data.status,
+});
+
+const mapSpecialization = (row = {}) => ({
+  id: row.id || row.uuid,
+  uuid: row.uuid,
+  name: row.name,
+  slug: row.slug || '',
+  code: row.code || '',
+  shortName: row.shortName || row.short_name || '',
+  description: row.description || '',
+  overview: row.overview || '',
+  eligibility: row.eligibility || '',
+  admissionRequirements: row.admissionRequirements || row.admission_requirements || '',
+  careerOpportunities: row.careerOpportunities || row.career_opportunities || '',
+  duration: row.duration ?? '',
+  durationUnit: row.durationUnit || row.duration_unit || '',
+  status: row.is_active === false ? 'INACTIVE' : (row.status || 'ACTIVE'),
+  createdAt: row.createdAt || row.created_at,
+  updatedAt: row.updatedAt || row.updated_at,
+});
+
+const toSpecializationPayload = (data) => ({
+  name: data.name,
+  slug: data.slug,
+  code: data.code || null,
+  short_name: data.shortName || data.short_name || null,
+  description: data.description || null,
+  overview: data.overview || null,
+  eligibility: data.eligibility || null,
+  admission_requirements: data.admissionRequirements || data.admission_requirements || null,
+  career_opportunities: data.careerOpportunities || data.career_opportunities || null,
+  duration: data.duration === '' || data.duration == null ? null : Number(data.duration),
+  duration_unit: data.durationUnit || data.duration_unit || null,
   status: data.status,
 });
 
@@ -783,11 +864,72 @@ const liveCourseService = {
 };
 
 const liveSpecializationService = {
-  getAll: (params) => api.get('/education/specializations', { params }),
-  getById: (id) => api.get(`/education/specializations/${id}`),
-  create: (data) => api.post('/education/specializations', data),
-  update: (id, data) => api.put(`/education/specializations/${id}`, data),
-  delete: (id) => api.delete(`/education/specializations/${id}`),
+  getAll: async (params = {}) => {
+    const res = await api.get('/academic/specializations', {
+      params: { search: params.search || undefined },
+    });
+    let specializations = unwrapList(res.data, 'specializations').map(mapSpecialization);
+    if (params.status) {
+      specializations = specializations.filter((item) => item.status === params.status);
+    }
+    const { items, pagination } = paginate(specializations, params);
+    return { data: { specializations: items, pagination } };
+  },
+  getById: async (id) => {
+    const res = await api.get('/academic/specializations');
+    const specializations = unwrapList(res.data, 'specializations').map(mapSpecialization);
+    const specialization = specializations.find(
+      (item) => String(item.uuid) === String(id) || String(item.id) === String(id)
+    );
+    if (!specialization) {
+      const err = new Error('Specialization not found');
+      err.response = { data: { message: 'Specialization not found' }, status: 404 };
+      throw err;
+    }
+    return { data: { specialization } };
+  },
+  create: async (data) => {
+    const res = await api.post('/academic/specializations', toSpecializationPayload(data));
+    const specialization = mapSpecialization(res.data.specialization || res.data.data);
+    return { data: { specialization } };
+  },
+  update: async (id, data) => {
+    const res = await api.put(`/academic/specializations/${id}`, toSpecializationPayload(data));
+    const specialization = mapSpecialization(res.data.specialization || res.data.data);
+    return { data: { specialization } };
+  },
+  delete: (id) => api.delete(`/academic/specializations/${id}`),
+  getCatalog: async (params) => {
+    const res = await api.get('/academic/specializations', { params });
+    const specializations = unwrapList(res.data, 'specializations').map(mapSpecialization);
+    return { data: { specializations } };
+  },
+  getUniversitySpecializations: async (universityUuid) => {
+    const res = await api.get('/academic/university-specializations', {
+      params: { university_uuid: universityUuid },
+    });
+    const specializations = unwrapList(res.data, 'specializations');
+    return { data: { specializations } };
+  },
+  assignToUniversity: (data) =>
+    api.post('/academic/university-specializations', data),
+};
+
+/** Always uses live academic APIs (not mock) */
+export const academicSpecializationService = {
+  getCatalog: liveSpecializationService.getCatalog,
+  getUniversitySpecializations: liveSpecializationService.getUniversitySpecializations,
+  assignToUniversity: liveSpecializationService.assignToUniversity,
+  create: liveSpecializationService.create,
+};
+
+export const academicCourseService = {
+  getUniversityCourses: async (params) => {
+    const res = await api.get('/academic/university-courses', { params });
+    return { data: res.data?.data || [] };
+  },
+  linkUniversityCourse: (data) => api.post('/academic/university-courses', data),
+  createCourseSpecializations: (data) => api.post('/academic/courses-specilizations', data),
 };
 
 const liveFeeService = {
@@ -804,6 +946,8 @@ const liveDashboardService = {
 
 export const universityService = liveUniversityService;
 export const courseService = liveCourseService;
-export const specializationService = USE_MOCK ? mockSpecializationService : liveSpecializationService;
+export const specializationService = liveSpecializationService;
 export const feeStructureService = USE_MOCK ? mockFeeService : liveFeeService;
 export const educationDashboardService = USE_MOCK ? mockDashboardService : liveDashboardService;
+
+export { toSpecializationPayload };

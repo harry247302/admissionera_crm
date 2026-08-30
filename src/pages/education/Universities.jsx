@@ -7,6 +7,7 @@ import {
   fetchUniversities, createUniversity, updateUniversity, deleteUniversity, setUniversityFilters,
 } from '../../redux/slices/educationSlice';
 import UniversityTable from '../../components/education/UniversityTable';
+import UniversityAssignSpecializationsModal from '../../components/education/UniversityAssignSpecializationsModal';
 import UniversityForm from '../../components/education/UniversityForm';
 import Breadcrumb from '../../components/education/Breadcrumb';
 import Pagination from '../../components/education/Pagination';
@@ -27,6 +28,7 @@ export default function Universities() {
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [assignTarget, setAssignTarget] = useState(null);
 
   const filters = { search, status, type };
 
@@ -132,6 +134,7 @@ export default function Universities() {
             onView={(u) => navigate(`/crm/education/universities/${u.id}`)}
             onEdit={setEditItem}
             onDelete={setDeleteTarget}
+            onAssignSpecializations={setAssignTarget}
           />
           <Pagination
             page={page}
@@ -150,6 +153,15 @@ export default function Universities() {
       <Modal open={!!editItem} onClose={() => setEditItem(null)} title="Edit University" size="lg">
         {editItem && <UniversityForm key={editItem.id} defaultValues={editItem} onSubmit={handleUpdate} loading={saving} onCancel={() => setEditItem(null)} />}
       </Modal>
+
+      <UniversityAssignSpecializationsModal
+        open={!!assignTarget}
+        university={assignTarget}
+        onClose={() => setAssignTarget(null)}
+        onAssigned={() => {
+          dispatch(fetchUniversities({ ...filters, page, limit: PAGE_SIZE, sortBy: 'name' }));
+        }}
+      />
 
       <ConfirmDialog
         open={!!deleteTarget}

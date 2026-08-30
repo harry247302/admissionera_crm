@@ -311,11 +311,15 @@ const educationSlice = createSlice({
       .addCase(createSpecialization.fulfilled, (state, action) => { state.saving = false; state.specializations.unshift(action.payload); })
       .addCase(createSpecialization.rejected, (state) => { state.saving = false; })
       .addCase(updateSpecialization.fulfilled, (state, action) => {
-        const idx = state.specializations.findIndex((s) => s.id === action.payload.id);
+        const idx = state.specializations.findIndex(
+          (s) => String(s.uuid || s.id) === String(action.payload.uuid || action.payload.id)
+        );
         if (idx !== -1) state.specializations[idx] = action.payload;
       })
       .addCase(deleteSpecialization.fulfilled, (state, action) => {
-        state.specializations = state.specializations.filter((s) => s.id !== action.payload);
+        state.specializations = state.specializations.filter(
+          (s) => String(s.uuid || s.id) !== String(action.payload)
+        );
       })
 
       .addCase(fetchFeeStructures.pending, (state) => { state.loading = true; state.error = null; })

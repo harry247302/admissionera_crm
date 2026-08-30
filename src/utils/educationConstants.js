@@ -20,14 +20,17 @@ export const DURATION_UNITS = ['MONTHS', 'YEARS', 'SEMESTERS'];
 export const ENTITY_STATUSES = ['ACTIVE', 'INACTIVE'];
 
 export const FEE_TYPES = [
-  { value: 'SEMESTER', label: 'Semester Wise' },
   { value: 'YEAR', label: 'Year Wise' },
+  { value: 'SEMESTER', label: 'Semester Wise' },
+  { value: 'ONE_TIME', label: 'One-Time' },
 ];
 
 export const FEE_NATURES = [
   { value: 'RECURRING', label: 'Recurring' },
   { value: 'ONE_TIME', label: 'One-time' },
 ];
+
+export const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AUD'];
 
 export const PAGE_SIZE = 10;
 
