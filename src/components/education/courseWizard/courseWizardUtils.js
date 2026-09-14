@@ -139,7 +139,14 @@ export const buildFeeStructurePayload = (fees, courseId, universityId) => {
 };
 
 export const STEP1_FIELDS = [
-  'universityId', 'name', 'code', 'degree', 'level', 'status',
-  'department', 'faculty', 'studyMode', 'attendanceMode', 'language', 'currency',
-  'description', 'overview', 'eligibility', 'curriculum', 'careerOpportunities',
+  'name',
+  'code',
+  'degree',
+  'level',
+  'department',
+  'studyMode',
+  'attendanceMode',
+  'language',
+  'currency',
+  'status',
 ];

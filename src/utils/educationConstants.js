@@ -15,6 +15,20 @@ export const COURSE_LEVELS = [
   'DOCTORATE',
 ];
 
+export const STUDY_MODES = [
+  'FULL_TIME',
+  'PART_TIME',
+  'DISTANCE',
+  'ONLINE',
+  'HYBRID',
+];
+
+export const ATTENDANCE_MODES = [
+  'ON_CAMPUS',
+  'ONLINE',
+  'HYBRID',
+];
+
 export const DURATION_UNITS = ['MONTHS', 'YEARS', 'SEMESTERS'];
 
 export const ENTITY_STATUSES = ['ACTIVE', 'INACTIVE'];
@@ -39,6 +53,18 @@ export const formatCurrency = (value) => {
   const num = Number(value);
   if (Number.isNaN(num)) return '—';
   return `₹${num.toLocaleString('en-IN')}`;
+};
+
+const CURRENCY_SYMBOLS = {
+  INR: '₹', USD: '$', EUR: '€', GBP: '£', AUD: 'A$',
+};
+
+export const formatMoney = (value, currency = 'INR') => {
+  if (value == null || value === '') return '—';
+  const num = Number(value);
+  if (Number.isNaN(num)) return '—';
+  const symbol = CURRENCY_SYMBOLS[currency] || `${currency} `;
+  return `${symbol}${num.toLocaleString(currency === 'INR' ? 'en-IN' : 'en-US')}`;
 };
 
 export const formatLabel = (value) => {

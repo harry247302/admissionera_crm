@@ -4,7 +4,7 @@ import { Plus, Search, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   fetchFeeStructures, fetchFeeStructureById, fetchUniversityOptions, fetchCourseOptions,
-  createFeeStructure, updateFeeStructure, deleteFeeStructure, setFeeFilters, clearCurrentFee,
+  deleteFeeStructure, setFeeFilters, clearCurrentFee,
 } from '../../redux/slices/educationSlice';
 import { courseService } from '../../services/educationService';
 import FeeStructureTable from '../../components/education/FeeStructureTable';
@@ -37,6 +37,13 @@ export default function CourseFees() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [formCourses, setFormCourses] = useState([]);
 
+  const reloadFees = useCallback(() => {
+    dispatch(setFeeFilters({ search, universityId, courseId, feeType, status }));
+    dispatch(fetchFeeStructures({
+      search, universityId, courseId, feeType, status, page, limit: PAGE_SIZE, sortBy: 'courseName',
+    }));
+  }, [dispatch, search, universityId, courseId, feeType, status, page]);
+
   useEffect(() => {
     dispatch(fetchUniversityOptions());
   }, [dispatch]);
@@ -46,12 +53,9 @@ export default function CourseFees() {
   }, [dispatch, universityId]);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      dispatch(setFeeFilters({ search, universityId, courseId, feeType, status }));
-      dispatch(fetchFeeStructures({ search, universityId, courseId, feeType, status, page, limit: PAGE_SIZE, sortBy: 'courseName' }));
-    }, 250);
+    const t = setTimeout(reloadFees, 250);
     return () => clearTimeout(t);
-  }, [dispatch, search, universityId, courseId, feeType, status, page]);
+  }, [reloadFees]);
 
   const loadFormCourses = useCallback(async (uniId) => {
     if (!uniId) {
@@ -60,32 +64,27 @@ export default function CourseFees() {
     }
     try {
       const res = await courseService.getOptions({ universityId: uniId });
-      setFormCourses(res.data.courses || []);
+      let courses = res.data.courses || [];
+      if (!courses.length) {
+        const all = await courseService.getOptions({});
+        courses = all.data.courses || [];
+      }
+      setFormCourses(courses);
     } catch {
       setFormCourses([]);
     }
   }, []);
 
-  const handleCreate = async (data) => {
-    try {
-      await dispatch(createFeeStructure(data)).unwrap();
-      toast.success('Fee structure saved');
-      setShowForm(false);
-      dispatch(fetchFeeStructures({ search, universityId, courseId, feeType, status, page, limit: PAGE_SIZE, sortBy: 'courseName' }));
-    } catch (err) {
-      toast.error(err);
-    }
+  const handleCreate = async () => {
+    toast.success('Fee structure saved');
+    setShowForm(false);
+    reloadFees();
   };
 
-  const handleUpdate = async (data) => {
-    try {
-      await dispatch(updateFeeStructure({ id: editItem.id, data })).unwrap();
-      toast.success('Fee structure updated');
-      setEditItem(null);
-      dispatch(fetchFeeStructures({ search, universityId, courseId, feeType, status, page, limit: PAGE_SIZE, sortBy: 'courseName' }));
-    } catch (err) {
-      toast.error(err);
-    }
+  const handleUpdate = async () => {
+    toast.success('Fee structure updated');
+    setEditItem(null);
+    reloadFees();
   };
 
   const handleDelete = async () => {
@@ -93,23 +92,23 @@ export default function CourseFees() {
       await dispatch(deleteFeeStructure(deleteTarget.id)).unwrap();
       toast.success('Fee structure deleted');
       setDeleteTarget(null);
-      dispatch(fetchFeeStructures({ search, universityId, courseId, feeType, status, page, limit: PAGE_SIZE, sortBy: 'courseName' }));
+      reloadFees();
     } catch (err) {
-      toast.error(err);
+      toast.error(typeof err === 'string' ? err : err?.message || 'Failed to delete');
     }
   };
 
   const openView = async (item) => {
     const result = await dispatch(fetchFeeStructureById(item.id));
     if (fetchFeeStructureById.fulfilled.match(result)) setViewItem(result.payload);
-    else toast.error(result.payload || 'Unable to load fee structure');
+    else setViewItem(item);
   };
 
   const openEdit = async (item) => {
-    await loadFormCourses(item.universityId);
+    await loadFormCourses(item.universityId || item.universityUuid);
     const result = await dispatch(fetchFeeStructureById(item.id));
     if (fetchFeeStructureById.fulfilled.match(result)) setEditItem(result.payload);
-    else toast.error(result.payload || 'Unable to load fee structure');
+    else setEditItem(item);
   };
 
   return (
@@ -121,7 +120,7 @@ export default function CourseFees() {
             { label: 'Course Fees' },
           ]} />
           <h1 className="text-2xl font-bold text-slate-900">Course Fee Management</h1>
-          <p className="text-sm text-slate-500">Define semester-wise or year-wise fees. Totals are calculated automatically. One active structure per course.</p>
+          <p className="text-sm text-slate-500">Define semester-wise or year-wise fees. Totals are calculated automatically.</p>
         </div>
         <button className="btn-primary" onClick={() => { setFormCourses([]); setShowForm(true); }}>
           <Plus className="h-4 w-4" /> Add Fee Structure
@@ -153,6 +152,7 @@ export default function CourseFees() {
             value={courseId}
             placeholder="Filter by course"
             onChange={(val) => { setCourseId(val); setPage(1); }}
+            includeUnlinked
           />
         </div>
         <select className="input w-auto" value={feeType} onChange={(e) => { setFeeType(e.target.value); setPage(1); }}>
@@ -236,7 +236,7 @@ export default function CourseFees() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title="Delete Fee Structure"
-        message={`Delete the fee structure for ${deleteTarget?.courseName}? This cannot be undone.`}
+        message={`Delete the fee structure for ${deleteTarget?.courseName}${deleteTarget?.specializationName ? ` / ${deleteTarget.specializationName}` : ''}? This cannot be undone.`}
         confirmText="Delete"
         danger
       />

@@ -145,7 +145,7 @@ export default function Specializations() {
         </>
       )}
 
-      <Modal open={showForm} onClose={() => setShowForm(false)} title="Add Specialization" size="lg">
+      <Modal open={showForm} onClose={() => setShowForm(false)} title="Add Specialization" size="xl">
         <SpecializationForm
           onSubmit={handleCreate}
           loading={saving}
@@ -153,7 +153,7 @@ export default function Specializations() {
         />
       </Modal>
 
-      <Modal open={!!editItem} onClose={() => setEditItem(null)} title="Edit Specialization" size="lg">
+      <Modal open={!!editItem} onClose={() => setEditItem(null)} title="Edit Specialization" size="xl">
         {editItem && (
           <SpecializationForm
             defaultValues={editItem}

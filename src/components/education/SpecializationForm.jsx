@@ -1,6 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import FormField from './FormField';
+import CourseContentTablesEditor, {
+  emptyContentParagraphs,
+  emptyContentTables,
+  mapApiParagraphsToEditor,
+  mapApiTablesToEditor,
+} from './courseWizard/CourseContentTablesEditor';
+import { specializationContentTableService } from '../../services/educationService';
 import { DURATION_UNITS, ENTITY_STATUSES, formatLabel } from '../../utils/educationConstants';
 
 const slugify = (value) =>
@@ -13,6 +20,7 @@ const slugify = (value) =>
 
 export default function SpecializationForm({ defaultValues, onSubmit, loading, onCancel }) {
   const isEditing = Boolean(defaultValues?.uuid || defaultValues?.id);
+  const specializationId = defaultValues?.uuid || defaultValues?.id;
 
   const { register, handleSubmit, setValue, control, formState: { errors } } = useForm({
     defaultValues: {
@@ -21,21 +29,26 @@ export default function SpecializationForm({ defaultValues, onSubmit, loading, o
       duration: '',
       slug: '',
       shortName: '',
-      overview: '',
-      admissionRequirements: '',
-      careerOpportunities: '',
       ...defaultValues,
       shortName: defaultValues?.shortName || defaultValues?.short_name || '',
       durationUnit: defaultValues?.durationUnit || defaultValues?.duration_unit || 'YEARS',
-      admissionRequirements:
-        defaultValues?.admissionRequirements || defaultValues?.admission_requirements || '',
-      careerOpportunities:
-        defaultValues?.careerOpportunities || defaultValues?.career_opportunities || '',
       status:
         defaultValues?.status
         || (defaultValues?.is_active === false ? 'INACTIVE' : 'ACTIVE'),
     },
   });
+
+  const [contentTables, setContentTables] = useState(() => (
+    defaultValues?.contentTables?.length
+      ? mapApiTablesToEditor(defaultValues.contentTables)
+      : emptyContentTables()
+  ));
+
+  const [contentParagraphs, setContentParagraphs] = useState(() => (
+    defaultValues?.contentParagraphs?.length
+      ? mapApiParagraphsToEditor(defaultValues.contentParagraphs)
+      : emptyContentParagraphs()
+  ));
 
   const name = useWatch({ control, name: 'name' });
 
@@ -44,11 +57,39 @@ export default function SpecializationForm({ defaultValues, onSubmit, loading, o
     setValue('slug', slugify(name));
   }, [name, isEditing, setValue]);
 
+  useEffect(() => {
+    if (!specializationId) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!defaultValues?.contentTables?.length) {
+          const res = await specializationContentTableService.getBySpecialization(specializationId);
+          if (!cancelled && res.data?.length) {
+            setContentTables(mapApiTablesToEditor(res.data));
+          }
+        }
+        if (!defaultValues?.contentParagraphs?.length) {
+          const res = await specializationContentTableService.getParagraphsBySpecialization(specializationId);
+          if (!cancelled && res.data?.length) {
+            setContentParagraphs(mapApiParagraphsToEditor(res.data));
+          }
+        }
+      } catch {
+        // Keep empty content if fetch fails
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [specializationId, defaultValues?.contentTables, defaultValues?.contentParagraphs]);
+
   return (
     <form
       onSubmit={handleSubmit((data) => onSubmit({
         ...data,
         duration: data.duration === '' || data.duration == null ? null : Number(data.duration),
+        contentTables,
+        contentParagraphs,
       }))}
       className="space-y-5"
     >
@@ -95,21 +136,12 @@ export default function SpecializationForm({ defaultValues, onSubmit, loading, o
         </FormField>
       </div>
 
-      <FormField label="Description">
-        <textarea className="input min-h-[80px]" rows={3} {...register('description')} />
-      </FormField>
-      <FormField label="Overview">
-        <textarea className="input min-h-[80px]" rows={3} {...register('overview')} />
-      </FormField>
-      <FormField label="Eligibility">
-        <textarea className="input min-h-[80px]" rows={3} {...register('eligibility')} />
-      </FormField>
-      <FormField label="Admission Requirements">
-        <textarea className="input min-h-[80px]" rows={3} {...register('admissionRequirements')} />
-      </FormField>
-      <FormField label="Career Opportunities">
-        <textarea className="input min-h-[80px]" rows={3} {...register('careerOpportunities')} />
-      </FormField>
+      <CourseContentTablesEditor
+        value={contentTables}
+        onChange={setContentTables}
+        paragraphs={contentParagraphs}
+        onParagraphsChange={setContentParagraphs}
+      />
 
       <div className="flex justify-end gap-3">
         {onCancel && <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>}

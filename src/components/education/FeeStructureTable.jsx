@@ -26,6 +26,7 @@ export default function FeeStructureTable({ structures = [], onView, onEdit, onD
                   <button type="button" className="text-left font-medium hover:text-brand-600" onClick={() => onView?.(f)}>
                     {f.courseName}
                   </button>
+                  <p className="text-xs text-slate-500">{f.specializationName || '—'}</p>
                   <p className="font-mono text-xs text-slate-400">{f.courseCode}</p>
                 </td>
                 <td className="px-4 py-3">

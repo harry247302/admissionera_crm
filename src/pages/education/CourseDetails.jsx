@@ -12,7 +12,8 @@ import StatusBadge from '../../components/education/StatusBadge';
 import CourseForm from '../../components/education/CourseForm';
 import SpecializationForm from '../../components/education/SpecializationForm';
 import SpecializationTable from '../../components/education/SpecializationTable';
-import FeeBreakdown from '../../components/education/FeeBreakdown';
+import SpecializationFeesPanel from '../../components/education/SpecializationFeesPanel';
+import SpecializationFeeForm from '../../components/education/SpecializationFeeForm';
 import Modal, { ConfirmDialog } from '../../components/common/Modal';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
@@ -29,6 +30,8 @@ export default function CourseDetails() {
   const [showSpecForm, setShowSpecForm] = useState(false);
   const [editSpec, setEditSpec] = useState(null);
   const [deleteSpec, setDeleteSpec] = useState(null);
+  const [feeTarget, setFeeTarget] = useState(null);
+  const [feeRefreshKey, setFeeRefreshKey] = useState(0);
 
   useEffect(() => {
     dispatch(fetchCourseById(id));
@@ -118,10 +121,10 @@ export default function CourseDetails() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <MiniStat label="Specializations" value={stats.specializationCount} />
+        <MiniStat label="Specializations" value={stats.specializationCount ?? course.specializationCount} />
         <MiniStat label="Active streams" value={stats.activeSpecializations} />
         <MiniStat label="Fee structures" value={stats.feeStructureCount} />
-        <MiniStat label="Active total fee" value={formatCurrency(stats.totalFee)} />
+        <MiniStat label="Total fee" value={formatCurrency(stats.totalFee || course.totalFee)} />
       </div>
 
       <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
@@ -143,12 +146,38 @@ export default function CourseDetails() {
           <div className="card lg:col-span-2 space-y-5">
             <section>
               <h2 className="mb-2 font-semibold text-slate-900">Course information</h2>
-              <p className="text-sm leading-6 text-slate-600">{course.description || 'No description added yet.'}</p>
+              {course.description ? (
+                <div className="rich-text-content" dangerouslySetInnerHTML={{ __html: course.description }} />
+              ) : (
+                <p className="text-sm leading-6 text-slate-600">No description added yet.</p>
+              )}
             </section>
+            {course.overview ? (
+              <section>
+                <h2 className="mb-2 font-semibold text-slate-900">Overview</h2>
+                <div className="rich-text-content" dangerouslySetInnerHTML={{ __html: course.overview }} />
+              </section>
+            ) : null}
             <section>
               <h2 className="mb-2 font-semibold text-slate-900">Eligibility</h2>
-              <p className="text-sm leading-6 text-slate-600">{course.eligibility || 'No eligibility notes added yet.'}</p>
+              {course.eligibility ? (
+                <div className="rich-text-content" dangerouslySetInnerHTML={{ __html: course.eligibility }} />
+              ) : (
+                <p className="text-sm leading-6 text-slate-600">No eligibility notes added yet.</p>
+              )}
             </section>
+            {course.curriculum ? (
+              <section>
+                <h2 className="mb-2 font-semibold text-slate-900">Curriculum</h2>
+                <div className="rich-text-content" dangerouslySetInnerHTML={{ __html: course.curriculum }} />
+              </section>
+            ) : null}
+            {course.careerOpportunities ? (
+              <section>
+                <h2 className="mb-2 font-semibold text-slate-900">Career Opportunities</h2>
+                <div className="rich-text-content" dangerouslySetInnerHTML={{ __html: course.careerOpportunities }} />
+              </section>
+            ) : null}
           </div>
           <div className="card space-y-4">
             <h2 className="font-semibold text-slate-900">University information</h2>
@@ -187,18 +216,11 @@ export default function CourseDetails() {
       )}
 
       {tab === 'Fees' && (
-        <div className="card space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-slate-900">Fee structure</h2>
-            <Link to="/crm/education/fees" className="text-sm font-medium text-brand-600">Manage fees</Link>
-          </div>
-          <FeeBreakdown structure={course.activeFeeStructure} />
-          {!course.activeFeeStructure && (
-            <div className="flex justify-end">
-              <Link to="/crm/education/fees" className="btn-primary">Add fee structure</Link>
-            </div>
-          )}
-        </div>
+        <SpecializationFeesPanel
+          course={course}
+          refreshKey={feeRefreshKey}
+          onEditFees={setFeeTarget}
+        />
       )}
 
       <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Edit Course" size="xl">
@@ -225,6 +247,27 @@ export default function CourseDetails() {
             onSubmit={handleUpdateSpec}
             loading={saving}
             onCancel={() => setEditSpec(null)}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        open={!!feeTarget}
+        onClose={() => setFeeTarget(null)}
+        title="Update Fees"
+        size="lg"
+      >
+        {feeTarget && (
+          <SpecializationFeeForm
+            key={feeTarget.spec?.uuid}
+            course={feeTarget.course}
+            spec={feeTarget.spec}
+            onCancel={() => setFeeTarget(null)}
+            onSaved={() => {
+              setFeeTarget(null);
+              setFeeRefreshKey((k) => k + 1);
+              dispatch(fetchCourseById(id));
+            }}
           />
         )}
       </Modal>

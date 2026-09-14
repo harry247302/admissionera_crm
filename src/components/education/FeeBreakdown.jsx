@@ -11,9 +11,12 @@ export default function FeeBreakdown({ structure, compact = false }) {
   }
 
   const items = [...(structure.items || [])].sort((a, b) => a.periodNumber - b.periodNumber);
-  const periodLabel = (item) => (item.periodType === 'year' || structure.feeType === 'YEAR'
-    ? `Year ${item.periodNumber}`
-    : `Semester ${item.periodNumber}`);
+  const periodLabel = (item) => item.periodLabel
+    || (item.periodType === 'year' || structure.feeType === 'YEAR'
+      ? `Year ${item.periodNumber}`
+      : item.periodType === 'one_time' || structure.feeType === 'ONE_TIME'
+        ? 'One-time payment'
+        : `Semester ${item.periodNumber}`);
 
   return (
     <div className="space-y-4">

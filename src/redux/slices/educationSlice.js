@@ -339,7 +339,7 @@ const educationSlice = createSlice({
         state.currentFeeStructure = action.payload;
       })
       .addCase(deleteFeeStructure.fulfilled, (state, action) => {
-        state.feeStructures = state.feeStructures.filter((f) => f.id !== action.payload);
+        state.feeStructures = state.feeStructures.filter((f) => String(f.id) !== String(action.payload));
       });
   },
 });
