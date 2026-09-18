@@ -1,7 +1,7 @@
 import FormField from '../FormField';
-import CourseContentTablesEditor from './CourseContentTablesEditor';
 import {
   ATTENDANCE_MODES,
+  COURSE_DEPARTMENTS,
   COURSE_LEVELS,
   CURRENCIES,
   ENTITY_STATUSES,
@@ -12,13 +12,14 @@ import {
 export default function Step1CourseDetails({
   register,
   errors,
-  contentTables = [],
-  onContentTablesChange,
-  contentParagraphs = [],
-  onContentParagraphsChange,
 }) {
   return (
     <div className="space-y-5">
+      <div>
+        <h3 className="text-base font-semibold text-slate-900">Course Details</h3>
+        <p className="mt-1 text-sm text-slate-500">Basic information for this course.</p>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField label="Course Name *" error={errors.name?.message}>
           <input
@@ -27,7 +28,7 @@ export default function Step1CourseDetails({
             {...register('name', { required: 'Course name is required' })}
           />
         </FormField>
-        <FormField label="Course Code *" error={errors.code?.message}>
+        <FormField label="Short Name *" error={errors.code?.message}>
           <input
             className="input uppercase"
             placeholder="e.g. MBA"
@@ -46,7 +47,12 @@ export default function Step1CourseDetails({
           </select>
         </FormField>
         <FormField label="Department">
-          <input className="input" placeholder="e.g. Business School" {...register('department')} />
+          <select className="input" {...register('department')}>
+            <option value="">All Course Categories</option>
+            {COURSE_DEPARTMENTS.map((dept) => (
+              <option key={dept} value={dept}>{dept}</option>
+            ))}
+          </select>
         </FormField>
         <FormField label="Study Mode">
           <select className="input" {...register('studyMode')}>
@@ -82,13 +88,6 @@ export default function Step1CourseDetails({
           </select>
         </FormField>
       </div>
-
-      <CourseContentTablesEditor
-        value={contentTables}
-        onChange={onContentTablesChange}
-        paragraphs={contentParagraphs}
-        onParagraphsChange={onContentParagraphsChange}
-      />
     </div>
   );
 }

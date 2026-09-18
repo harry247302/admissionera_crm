@@ -1002,9 +1002,9 @@ const liveCourseService = {
 };
 
 const saveCourseContentTables = async (courseId, tables = []) => {
-  for (const [tableIndex, table] of tables.entries()) {
-    if (table.persisted) continue;
+  await api.delete(`/academic/course-tables/by-course/${courseId}`);
 
+  for (const [tableIndex, table] of tables.entries()) {
     const hasContent = table.rows?.some((row) =>
       Object.values(row.cells || {}).some((cell) => String(cell || '').trim())
     );
@@ -1013,7 +1013,9 @@ const saveCourseContentTables = async (courseId, tables = []) => {
     const createdTable = await api.post('/academic/course-tables', {
       course_id: courseId,
       title: table.title || `Table ${tableIndex + 1}`,
-      sort_order: tableIndex,
+      sort_order: Number.isFinite(Number(table.sortOrder))
+        ? Number(table.sortOrder)
+        : tableIndex,
     });
     const tableId = createdTable.data?.data?.id;
     if (!tableId) continue;
@@ -1032,7 +1034,9 @@ const saveCourseContentTables = async (courseId, tables = []) => {
         table_id: tableId,
         label: String(label),
         content,
-        sort_order: rowIndex,
+        sort_order: Number.isFinite(Number(row.sortOrder))
+          ? Number(row.sortOrder)
+          : rowIndex,
       });
     }
   }
@@ -1049,7 +1053,9 @@ const saveCourseContentParagraphs = async (courseId, paragraphs = []) => {
       course_id: courseId,
       title: paragraph.title || `Paragraph ${index + 1}`,
       content,
-      sort_order: index,
+      sort_order: Number.isFinite(Number(paragraph.sortOrder))
+        ? Number(paragraph.sortOrder)
+        : index,
     });
   }
 };
@@ -1066,6 +1072,7 @@ export const courseContentTableService = {
   createTable: (data) => api.post('/academic/course-tables', data),
   createRow: (data) => api.post('/academic/course-table-rows', data),
   createParagraph: (data) => api.post('/academic/course-table-paragraphs', data),
+  deleteByCourse: (courseId) => api.delete(`/academic/course-tables/by-course/${courseId}`),
   saveMany: saveCourseContentTables,
   saveParagraphs: saveCourseContentParagraphs,
 };
@@ -1145,9 +1152,9 @@ const liveSpecializationService = {
 };
 
 const saveSpecializationContentTables = async (specializationId, tables = []) => {
-  for (const [tableIndex, table] of tables.entries()) {
-    if (table.persisted) continue;
+  await api.delete(`/academic/specialization-tables/by-specialization/${specializationId}`);
 
+  for (const [tableIndex, table] of tables.entries()) {
     const hasContent = table.rows?.some((row) =>
       Object.values(row.cells || {}).some((cell) => String(cell || '').trim())
     );
@@ -1156,7 +1163,9 @@ const saveSpecializationContentTables = async (specializationId, tables = []) =>
     const createdTable = await api.post('/academic/specialization-tables', {
       specialization_uuid: specializationId,
       title: table.title || `Table ${tableIndex + 1}`,
-      sort_order: tableIndex,
+      sort_order: Number.isFinite(Number(table.sortOrder))
+        ? Number(table.sortOrder)
+        : tableIndex,
     });
     const tableId = createdTable.data?.data?.id;
     if (!tableId) continue;
@@ -1175,16 +1184,18 @@ const saveSpecializationContentTables = async (specializationId, tables = []) =>
         table_id: tableId,
         label: String(label),
         content,
-        sort_order: rowIndex,
+        sort_order: Number.isFinite(Number(row.sortOrder))
+          ? Number(row.sortOrder)
+          : rowIndex,
       });
     }
   }
 };
 
 const saveSpecializationContentParagraphs = async (specializationId, paragraphs = []) => {
-  for (const [index, paragraph] of paragraphs.entries()) {
-    if (paragraph.persisted) continue;
+  await api.delete(`/academic/specialization-table-paragraphs/by-specialization/${specializationId}`);
 
+  for (const [index, paragraph] of paragraphs.entries()) {
     const content = String(paragraph.content || '').trim();
     if (!content) continue;
 
@@ -1192,7 +1203,9 @@ const saveSpecializationContentParagraphs = async (specializationId, paragraphs 
       specialization_uuid: specializationId,
       title: paragraph.title || `Paragraph ${index + 1}`,
       content,
-      sort_order: index,
+      sort_order: Number.isFinite(Number(paragraph.sortOrder))
+        ? Number(paragraph.sortOrder)
+        : index,
     });
   }
 };
@@ -1209,6 +1222,8 @@ export const specializationContentTableService = {
   createTable: (data) => api.post('/academic/specialization-tables', data),
   createRow: (data) => api.post('/academic/specialization-table-rows', data),
   createParagraph: (data) => api.post('/academic/specialization-table-paragraphs', data),
+  deleteBySpecialization: (specializationId) =>
+    api.delete(`/academic/specialization-tables/by-specialization/${specializationId}`),
   saveMany: saveSpecializationContentTables,
   saveParagraphs: saveSpecializationContentParagraphs,
 };

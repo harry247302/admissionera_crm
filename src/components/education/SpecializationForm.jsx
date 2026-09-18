@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
-import FormField from './FormField';
-import CourseContentTablesEditor, {
+import toast from 'react-hot-toast';
+import Step1SpecializationDetails from './courseWizard/Step1SpecializationDetails';
+import Step2ContentTables from './courseWizard/Step2ContentTables';
+import Step3ContentParagraphs from './courseWizard/Step3ContentParagraphs';
+import WizardStepIndicator from './courseWizard/WizardStepIndicator';
+import {
+  SPECIALIZATION_FORM_STEPS,
+  SPECIALIZATION_STEP1_FIELDS,
+} from './courseWizard/courseWizardUtils';
+import {
   emptyContentParagraphs,
   emptyContentTables,
   mapApiParagraphsToEditor,
   mapApiTablesToEditor,
 } from './courseWizard/CourseContentTablesEditor';
 import { specializationContentTableService } from '../../services/educationService';
-import { DURATION_UNITS, ENTITY_STATUSES, formatLabel } from '../../utils/educationConstants';
 
 const slugify = (value) =>
   String(value)
@@ -21,8 +28,9 @@ const slugify = (value) =>
 export default function SpecializationForm({ defaultValues, onSubmit, loading, onCancel }) {
   const isEditing = Boolean(defaultValues?.uuid || defaultValues?.id);
   const specializationId = defaultValues?.uuid || defaultValues?.id;
+  const [step, setStep] = useState(0);
 
-  const { register, handleSubmit, setValue, control, formState: { errors } } = useForm({
+  const { register, handleSubmit, setValue, control, trigger, formState: { errors } } = useForm({
     defaultValues: {
       status: 'ACTIVE',
       durationUnit: 'YEARS',
@@ -83,71 +91,90 @@ export default function SpecializationForm({ defaultValues, onSubmit, loading, o
     return () => { cancelled = true; };
   }, [specializationId, defaultValues?.contentTables, defaultValues?.contentParagraphs]);
 
+  const goNext = async () => {
+    if (step === 0) {
+      const valid = await trigger(SPECIALIZATION_STEP1_FIELDS);
+      if (!valid) {
+        toast.error('Please fill required specialization details');
+        return;
+      }
+    }
+    setStep((s) => Math.min(s + 1, SPECIALIZATION_FORM_STEPS.length - 1));
+  };
+
+  const goBack = () => setStep((s) => Math.max(s - 1, 0));
+
+  const saveSpecialization = handleSubmit(async (data) => {
+    await onSubmit({
+      ...data,
+      duration: data.duration === '' || data.duration == null ? null : Number(data.duration),
+      contentTables,
+      contentParagraphs,
+    });
+  });
+
+  const isLastStep = step === SPECIALIZATION_FORM_STEPS.length - 1;
+
   return (
     <form
-      onSubmit={handleSubmit((data) => onSubmit({
-        ...data,
-        duration: data.duration === '' || data.duration == null ? null : Number(data.duration),
-        contentTables,
-        contentParagraphs,
-      }))}
+      onSubmit={(e) => {
+        // Prevent Enter in inputs from jumping steps / submitting early.
+        e.preventDefault();
+      }}
       className="space-y-5"
     >
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-        Create a specialization in the catalog. Assign it to universities and courses from their respective pages.
-      </div>
+      <WizardStepIndicator steps={SPECIALIZATION_FORM_STEPS} currentStep={step} />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FormField label="Specialization Name *" error={errors.name?.message}>
-          <input
-            className="input"
-            placeholder="e.g. Computer Science"
-            {...register('name', { required: 'Name is required' })}
-          />
-        </FormField>
-        <FormField label="Slug *" error={errors.slug?.message}>
-          <input
-            className="input lowercase"
-            placeholder="e.g. computer-science"
-            {...register('slug', { required: 'Slug is required' })}
-          />
-        </FormField>
-        <FormField label="Code" error={errors.code?.message}>
-          <input className="input uppercase" placeholder="e.g. CS" {...register('code')} />
-        </FormField>
-        <FormField label="Short Name">
-          <input className="input" placeholder="e.g. CS" {...register('shortName')} />
-        </FormField>
-        <FormField label="Duration">
-          <input type="number" min="0" step="0.5" className="input" {...register('duration')} />
-        </FormField>
-        <FormField label="Duration Unit">
-          <select className="input" {...register('durationUnit')}>
-            <option value="">Select unit</option>
-            {DURATION_UNITS.map((unit) => (
-              <option key={unit} value={unit}>{formatLabel(unit)}</option>
-            ))}
-          </select>
-        </FormField>
-        <FormField label="Status">
-          <select className="input" {...register('status')}>
-            {ENTITY_STATUSES.map((s) => <option key={s} value={s}>{formatLabel(s)}</option>)}
-          </select>
-        </FormField>
-      </div>
+      {step === 0 && (
+        <Step1SpecializationDetails
+          register={register}
+          errors={errors}
+        />
+      )}
 
-      <CourseContentTablesEditor
-        value={contentTables}
-        onChange={setContentTables}
-        paragraphs={contentParagraphs}
-        onParagraphsChange={setContentParagraphs}
-      />
+      {step === 1 && (
+        <Step2ContentTables
+          contentTables={contentTables}
+          onContentTablesChange={setContentTables}
+        />
+      )}
 
-      <div className="flex justify-end gap-3">
-        {onCancel && <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>}
-        <button type="submit" className="btn-primary" disabled={loading}>
-          {loading ? 'Saving...' : isEditing ? 'Update Specialization' : 'Save Specialization'}
-        </button>
+      {step === 2 && (
+        <Step3ContentParagraphs
+          contentParagraphs={contentParagraphs}
+          onContentParagraphsChange={setContentParagraphs}
+        />
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+        <div>
+          {onCancel && step === 0 && (
+            <button type="button" className="btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
+          {step > 0 && (
+            <button type="button" className="btn-secondary" onClick={goBack}>
+              Back
+            </button>
+          )}
+        </div>
+        <div className="flex gap-3">
+          {!isLastStep ? (
+            <button type="button" className="btn-primary" onClick={goNext}>
+              Next
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={loading}
+              onClick={saveSpecialization}
+            >
+              {loading ? 'Saving...' : isEditing ? 'Update Specialization' : 'Save Specialization'}
+            </button>
+          )}
+        </div>
       </div>
     </form>
   );

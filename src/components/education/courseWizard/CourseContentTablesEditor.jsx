@@ -5,19 +5,21 @@ const newRow = (columns = []) => ({
   cells: Object.fromEntries(columns.map((col) => [col, ''])),
 });
 
-const emptyTable = () => ({
+const emptyTable = (sortOrder = 0) => ({
   clientId: crypto.randomUUID(),
   persisted: false,
   title: '',
+  sortOrder,
   columns: ['Column 1', 'Column 2'],
   rows: [newRow(['Column 1', 'Column 2'])],
 });
 
-const emptyParagraph = () => ({
+const emptyParagraph = (sortOrder = 0) => ({
   clientId: crypto.randomUUID(),
   persisted: false,
   title: '',
   content: '',
+  sortOrder,
 });
 
 export const emptyContentTables = () => [];
@@ -42,14 +44,16 @@ export const mapApiTablesToEditor = (tables = []) =>
       clientId: table.id || crypto.randomUUID(),
       persisted: true,
       title: table.title || `Table ${index + 1}`,
+      sortOrder: table.sort_order ?? index,
       columns,
       rows: rows.length
-        ? rows.map((row) => {
+        ? rows.map((row, rowIndex) => {
           const content = typeof row.content === 'string'
             ? (() => { try { return JSON.parse(row.content); } catch { return {}; } })()
             : (row.content || {});
           return {
             clientId: row.id || crypto.randomUUID(),
+            sortOrder: row.sort_order ?? rowIndex,
             cells: Object.fromEntries(columns.map((col) => [col, content[col] ?? ''])),
           };
         })
@@ -72,8 +76,11 @@ export default function CourseContentTablesEditor({
   onChange,
   paragraphs = [],
   onParagraphsChange,
+  mode = 'all',
 }) {
   const tables = value;
+  const showTables = mode === 'all' || mode === 'tables';
+  const showParagraphs = mode === 'all' || mode === 'paragraphs';
 
   const setTables = (next) => onChange?.(next);
   const setParagraphs = (next) => onParagraphsChange?.(next);
@@ -84,7 +91,7 @@ export default function CourseContentTablesEditor({
     )));
   };
 
-  const addTable = () => setTables([...tables, emptyTable()]);
+  const addTable = () => setTables([...tables, emptyTable(tables.length)]);
 
   const removeTable = (clientId) => {
     setTables(tables.filter((table) => table.clientId !== clientId));
@@ -154,7 +161,7 @@ export default function CourseContentTablesEditor({
     });
   };
 
-  const addParagraph = () => setParagraphs([...paragraphs, emptyParagraph()]);
+  const addParagraph = () => setParagraphs([...paragraphs, emptyParagraph(paragraphs.length)]);
 
   const removeParagraph = (clientId) => {
     setParagraphs(paragraphs.filter((p) => p.clientId !== clientId));
@@ -168,6 +175,7 @@ export default function CourseContentTablesEditor({
 
   return (
     <div className="space-y-8">
+      {showTables && (
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -195,6 +203,18 @@ export default function CourseContentTablesEditor({
                   placeholder={`Table ${tableIndex + 1}`}
                   value={table.title}
                   onChange={(e) => updateTable(table.clientId, { title: e.target.value })}
+                />
+              </div>
+              <div className="w-28">
+                <label className="label">Sort order</label>
+                <input
+                  type="number"
+                  min={0}
+                  className="input"
+                  value={table.sortOrder ?? tableIndex}
+                  onChange={(e) => updateTable(table.clientId, {
+                    sortOrder: Number(e.target.value) || 0,
+                  })}
                 />
               </div>
               <button
@@ -281,7 +301,9 @@ export default function CourseContentTablesEditor({
           </div>
         ))}
       </div>
+      )}
 
+      {showParagraphs && (
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -311,6 +333,18 @@ export default function CourseContentTablesEditor({
                   onChange={(e) => updateParagraph(paragraph.clientId, { title: e.target.value })}
                 />
               </div>
+              <div className="w-28">
+                <label className="label">Sort order</label>
+                <input
+                  type="number"
+                  min={0}
+                  className="input"
+                  value={paragraph.sortOrder ?? index}
+                  onChange={(e) => updateParagraph(paragraph.clientId, {
+                    sortOrder: Number(e.target.value) || 0,
+                  })}
+                />
+              </div>
               <button
                 type="button"
                 className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600"
@@ -332,6 +366,7 @@ export default function CourseContentTablesEditor({
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }

@@ -7,6 +7,20 @@ export const WIZARD_STEPS = [
   { key: 'review', label: 'Review' },
 ];
 
+export const COURSE_FORM_STEPS = [
+  { key: 'details', label: 'Course Details' },
+  { key: 'tables', label: 'Content Tables' },
+  { key: 'paragraphs', label: 'Paragraphs' },
+];
+
+export const SPECIALIZATION_FORM_STEPS = [
+  { key: 'details', label: 'Specialization Details' },
+  { key: 'tables', label: 'Content Tables' },
+  { key: 'paragraphs', label: 'Paragraphs' },
+];
+
+export const SPECIALIZATION_STEP1_FIELDS = ['name', 'slug'];
+
 export const slugify = (value) =>
   String(value)
     .toLowerCase()

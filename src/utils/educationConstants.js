@@ -46,6 +46,36 @@ export const FEE_NATURES = [
 
 export const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AUD'];
 
+export const COURSE_DEPARTMENTS = [
+  'Arts',
+  'Accounts',
+  'Finance',
+  'Marketing',
+  'Science',
+  'Medical',
+  'Computers',
+  'Engineering',
+  'Law',
+  'Education',
+  'Social Sciences',
+  'Business Administration',
+  'Psychology',
+  'Economics',
+  'Architecture',
+  'Environmental Science',
+  'Nursing',
+  'Hospitality Management',
+  'Media and Communication',
+  'Information Technology',
+  'Pharmacy',
+  'Agriculture',
+  'Design',
+  'Public Health',
+  'Mathematics',
+  'Data Science',
+  'Artificial Intelligence',
+];
+
 export const PAGE_SIZE = 10;
 
 export const formatCurrency = (value) => {
