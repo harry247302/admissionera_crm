@@ -18,6 +18,7 @@ import Courses from './pages/education/Courses';
 import CourseDetails from './pages/education/CourseDetails';
 import Specializations from './pages/education/Specializations';
 import CourseFees from './pages/education/CourseFees';
+import Sessions from './pages/education/Sessions';
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="education/courses" element={<Courses />} />
           <Route path="education/courses/:id" element={<CourseDetails />} />
           <Route path="education/specializations" element={<Specializations />} />
+          <Route path="education/admissions" element={<Sessions />} />
           <Route path="education/fees" element={<CourseFees />} />
         </Route>
         <Route path="*" element={<Navigate to="/crm" replace />} />

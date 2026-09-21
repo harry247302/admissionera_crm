@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from 'recharts';
-import { BookOpen, Building2, IndianRupee, Layers, CheckCircle2 } from 'lucide-react';
+import { BookOpen, Building2, GraduationCap, IndianRupee, Layers, CheckCircle2 } from 'lucide-react';
 import { fetchEducationDashboard } from '../../redux/slices/educationSlice';
 import { StatCard } from '../../components/crm/CRMStats';
 import Breadcrumb from '../../components/education/Breadcrumb';
@@ -44,10 +44,11 @@ export default function EducationDashboard() {
         <StatCard title="Fee Structures" value={stats.totalFeeStructures} color="amber" />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         <QuickLink to="/crm/education/universities" icon={Building2} label="Universities" hint="Add and manage institutions" />
         <QuickLink to="/crm/education/courses" icon={BookOpen} label="Courses" hint="Attach courses to a university" />
         <QuickLink to="/crm/education/specializations" icon={Layers} label="Specializations" hint="University → course → stream" />
+        <QuickLink to="/crm/education/admissions" icon={GraduationCap} label="Sessions" hint="Academic session dates" />
         <QuickLink to="/crm/education/fees" icon={IndianRupee} label="Course Fees" hint="Semester or year-wise structures" />
       </div>
 

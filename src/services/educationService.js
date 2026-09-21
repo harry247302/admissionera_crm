@@ -1527,6 +1527,14 @@ const liveUniversityApprovalService = {
   },
 };
 
+export const sessionService = {
+  create: (data) => api.post('/session/create', {
+    name: data.name,
+    start_date: data.start_date,
+    expiry_date: data.expiry_date,
+  }),
+};
+
 export const universityService = liveUniversityService;
 export const courseService = liveCourseService;
 export const specializationService = liveSpecializationService;

@@ -5,6 +5,7 @@ import {
   specializationService,
   feeStructureService,
   educationDashboardService,
+  sessionService,
 } from '../../services/educationService';
 
 const fail = (err, fallback) => err.response?.data?.message || err.message || fallback;
@@ -162,6 +163,15 @@ export const deleteSpecialization = createAsyncThunk('education/deleteSpecializa
   }
 });
 
+export const createSession = createAsyncThunk('education/createSession', async (data, { rejectWithValue }) => {
+  try {
+    const res = await sessionService.create(data);
+    return res.data?.data || res.data;
+  } catch (err) {
+    return rejectWithValue(fail(err, 'Failed to create session'));
+  }
+});
+
 export const fetchFeeStructures = createAsyncThunk('education/fetchFees', async (params, { rejectWithValue }) => {
   try {
     const res = await feeStructureService.getAll(params);
@@ -230,6 +240,7 @@ const educationSlice = createSlice({
     courseFilters: {},
     specializationFilters: {},
     feeFilters: {},
+    sessions: [],
     loading: false,
     detailLoading: false,
     saving: false,
@@ -321,6 +332,13 @@ const educationSlice = createSlice({
           (s) => String(s.uuid || s.id) !== String(action.payload)
         );
       })
+
+      .addCase(createSession.pending, (state) => { state.saving = true; })
+      .addCase(createSession.fulfilled, (state, action) => {
+        state.saving = false;
+        if (action.payload) state.sessions.unshift(action.payload);
+      })
+      .addCase(createSession.rejected, (state) => { state.saving = false; })
 
       .addCase(fetchFeeStructures.pending, (state) => { state.loading = true; state.error = null; })
       .addCase(fetchFeeStructures.fulfilled, (state, action) => {

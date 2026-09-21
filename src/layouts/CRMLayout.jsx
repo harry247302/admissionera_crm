@@ -25,6 +25,7 @@ const educationItems = [
   { to: '/crm/education/universities', label: 'Universities', icon: Landmark },
   { to: '/crm/education/courses', label: 'Courses', icon: BookOpen },
   { to: '/crm/education/specializations', label: 'Specializations', icon: Layers },
+  { to: '/crm/education/admissions', label: 'Sessions', icon: GraduationCap },
   { to: '/crm/education/fees', label: 'Course Fees', icon: IndianRupee },
 ];
 
