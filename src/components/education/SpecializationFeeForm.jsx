@@ -3,6 +3,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   academicCourseFeeService,
+  sessionService,
   STRUCTURE_TO_FEE_TYPE,
 } from '../../services/educationService';
 import { CURRENCIES, FEE_TYPES, formatMoney } from '../../utils/educationConstants';
@@ -34,6 +35,8 @@ export default function SpecializationFeeForm({ course, spec, onSaved, onCancel 
   const fees = spec?.fees || [];
   const [rows, setRows] = useState(fees.map(toRow));
   const [feeType, setFeeType] = useState(resolveFeeType(fees));
+  const [sessionId, setSessionId] = useState('');
+  const [sessions, setSessions] = useState([]);
   const [saving, setSaving] = useState(false);
 
   // Reload from the API so edits are based on the current stored fees
@@ -51,6 +54,21 @@ export default function SpecializationFeeForm({ course, spec, onSaved, onCancel 
 
     return () => { active = false; };
   }, [spec?.uuid]);
+
+  useEffect(() => {
+    let active = true;
+    sessionService.getAll()
+      .then((res) => {
+        if (!active) return;
+        const list = res.data?.sessions || [];
+        setSessions(list);
+        setSessionId((prev) => prev || list[0]?.id || '');
+      })
+      .catch(() => {
+        if (active) setSessions([]);
+      });
+    return () => { active = false; };
+  }, []);
 
   const visibleRows = rows.filter((r) => !r.removed);
   const total = visibleRows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
@@ -79,6 +97,11 @@ export default function SpecializationFeeForm({ course, spec, onSaved, onCancel 
       return;
     }
 
+    if (!sessionId) {
+      toast.error('Select a session before saving fees.');
+      return;
+    }
+
     const kept = rows.filter((r) => !r.removed);
     if (kept.some((r) => r.amount === '' || Number.isNaN(Number(r.amount)))) {
       toast.error('Every period needs a valid amount.');
@@ -94,6 +117,7 @@ export default function SpecializationFeeForm({ course, spec, onSaved, onCancel 
           universityId: course?.universityUuid || course?.universityId,
           courseId: course?.uuid || course?.id,
           specializationId: spec.uuid,
+          sessionId,
           feeType,
           totalPeriods,
           periodNumber: Number(row.periodNumber) || index + 1,
@@ -128,16 +152,32 @@ export default function SpecializationFeeForm({ course, spec, onSaved, onCancel 
         <p className="text-xs text-slate-500">{course?.universityName}</p>
       </div>
 
-      <div className="w-full sm:w-56">
-        <label className="label" htmlFor="feeType">Fee structure</label>
-        <select
-          id="feeType"
-          className="input"
-          value={feeType}
-          onChange={(e) => setFeeType(e.target.value)}
-        >
-          {FEE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label className="label" htmlFor="feeType">Fee structure</label>
+          <select
+            id="feeType"
+            className="input"
+            value={feeType}
+            onChange={(e) => setFeeType(e.target.value)}
+          >
+            {FEE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label" htmlFor="sessionId">Session *</label>
+          <select
+            id="sessionId"
+            className="input"
+            value={sessionId}
+            onChange={(e) => setSessionId(e.target.value)}
+          >
+            <option value="">{sessions.length ? 'Select session' : 'No sessions available'}</option>
+            {sessions.map((session) => (
+              <option key={session.id} value={session.id}>{session.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="space-y-2">

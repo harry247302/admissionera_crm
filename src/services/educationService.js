@@ -1255,22 +1255,32 @@ export const toCourseFeePayload = ({
   universityId,
   courseId,
   specializationId,
+  sessionId,
   feeType,
   totalPeriods,
   periodNumber,
   periodLabel,
   amount,
   currency = 'INR',
+  perSemesterFee,
+  perYearFee,
+  totalSem,
+  totalYears,
 }) => ({
   university_id: universityId,
   course_id: courseId,
   specialization_id: specializationId,
+  session_id: sessionId || null,
   fee_structure_type: FEE_TYPE_TO_STRUCTURE[feeType] || String(feeType || '').toLowerCase(),
   total_periods: Number(totalPeriods),
   period_number: Number(periodNumber),
   period_label: periodLabel,
   amount: Number(amount),
   currency,
+  per_semester_fee: perSemesterFee === '' || perSemesterFee == null ? null : Number(perSemesterFee),
+  per_year_fee: perYearFee === '' || perYearFee == null ? null : Number(perYearFee),
+  total_sem: totalSem === '' || totalSem == null ? null : Number(totalSem),
+  total_years: totalYears === '' || totalYears == null ? null : Number(totalYears),
 });
 
 export const STRUCTURE_TO_FEE_TYPE = {
@@ -1311,6 +1321,7 @@ const structureKey = (fee = {}) => [
   fee.university_id || '',
   fee.course_id || '',
   fee.specialization_id || '',
+  fee.session_id || '',
   fee.fee_structure_type || '',
 ].join('::');
 
@@ -1334,6 +1345,12 @@ export const groupCourseFeesIntoStructures = (rows = []) => {
         courseCode: '',
         specializationId: fee.specialization_id,
         specializationName: fee.specialization_name || '',
+        sessionId: fee.session_id || '',
+        sessionName: fee.session_name || '',
+        perSemesterFee: fee.per_seme_fees ?? fee.per_semester_fee ?? '',
+        perYearFee: fee.per_year_fees ?? fee.per_year_fee ?? '',
+        totalSem: fee.total_sem ?? '',
+        totalYears: fee.total_years ?? '',
         feeType,
         feeStructureType: fee.fee_structure_type,
         totalPeriods: Number(fee.total_periods || 0),
@@ -1389,6 +1406,7 @@ const toCourseFeeUpdatePayload = (data = {}) => {
   if (data.universityId != null) payload.university_id = data.universityId;
   if (data.courseId != null) payload.course_id = data.courseId;
   if (data.specializationId != null) payload.specialization_id = data.specializationId;
+  if (data.sessionId !== undefined) payload.session_id = data.sessionId || null;
   if (data.feeType != null) {
     payload.fee_structure_type =
       FEE_TYPE_TO_STRUCTURE[data.feeType] || String(data.feeType).toLowerCase();
@@ -1398,6 +1416,21 @@ const toCourseFeeUpdatePayload = (data = {}) => {
   if (data.periodLabel != null) payload.period_label = data.periodLabel;
   if (data.amount != null) payload.amount = Number(data.amount);
   if (data.currency != null) payload.currency = data.currency;
+  if (data.perSemesterFee !== undefined) {
+    payload.per_semester_fee =
+      data.perSemesterFee === '' || data.perSemesterFee == null ? null : Number(data.perSemesterFee);
+  }
+  if (data.perYearFee !== undefined) {
+    payload.per_year_fee =
+      data.perYearFee === '' || data.perYearFee == null ? null : Number(data.perYearFee);
+  }
+  if (data.totalSem !== undefined) {
+    payload.total_sem = data.totalSem === '' || data.totalSem == null ? null : Number(data.totalSem);
+  }
+  if (data.totalYears !== undefined) {
+    payload.total_years =
+      data.totalYears === '' || data.totalYears == null ? null : Number(data.totalYears);
+  }
   return payload;
 };
 
@@ -1528,6 +1561,14 @@ const liveUniversityApprovalService = {
 };
 
 export const sessionService = {
+  getAll: async () => {
+    const res = await api.get('/session');
+    return {
+      data: {
+        sessions: res.data?.sessions || res.data?.data || [],
+      },
+    };
+  },
   create: (data) => api.post('/session/create', {
     name: data.name,
     start_date: data.start_date,

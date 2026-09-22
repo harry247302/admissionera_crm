@@ -19,6 +19,7 @@ import {
 } from '../../utils/educationConstants';
 import {
   academicCourseFeeService,
+  sessionService,
   specializationService,
 } from '../../services/educationService';
 
@@ -61,15 +62,23 @@ export default function FeeStructureForm({
   loading,
   onCancel,
 }) {
-  const [universityId, setUniversityId] = useState(defaultValues?.universityId || '');
+  const [universityId, setUniversityId] = useState(
+    defaultValues?.universityUuid || defaultValues?.universityId || ''
+  );
   const [courseId, setCourseId] = useState(defaultValues?.courseId || '');
   const [specializationId, setSpecializationId] = useState(defaultValues?.specializationId || '');
+  const [sessionId, setSessionId] = useState(defaultValues?.sessionId || '');
   const [currency, setCurrency] = useState(defaultValues?.currency || 'INR');
   const [feeType, setFeeType] = useState(defaultValues?.feeType || 'SEMESTER');
   const [status, setStatus] = useState(defaultValues?.status || 'ACTIVE');
   const [totalPeriods, setTotalPeriods] = useState(defaultValues?.totalPeriods || 3);
+  const [perSemesterFee, setPerSemesterFee] = useState(defaultValues?.perSemesterFee ?? '');
+  const [perYearFee, setPerYearFee] = useState(defaultValues?.perYearFee ?? '');
+  const [totalSem, setTotalSem] = useState(defaultValues?.totalSem ?? '');
+  const [totalYears, setTotalYears] = useState(defaultValues?.totalYears ?? '');
   const [savingIndex, setSavingIndex] = useState(null);
   const [catalogSpecializations, setCatalogSpecializations] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [items, setItems] = useState(() => {
     if (defaultValues?.items?.length) {
       return defaultValues.items.map((item) => ({
@@ -100,8 +109,11 @@ export default function FeeStructureForm({
   }, [courseSpecializations, catalogSpecializations]);
 
   const periodNoun = periodNounFor(feeType);
+  const isEditing = Boolean(defaultValues?.id);
   const savedItems = items.filter((item) => item.savedUuid);
   const hasSaved = savedItems.length > 0;
+  // Lock identity only after the first create-save. Edit mode keeps fee fields editable.
+  const lockIdentity = !isEditing && hasSaved;
 
   useEffect(() => {
     onUniversityChange?.(universityId);
@@ -116,6 +128,19 @@ export default function FeeStructureForm({
       })
       .catch(() => {
         if (active) setCatalogSpecializations([]);
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    sessionService.getAll()
+      .then((res) => {
+        if (!active) return;
+        setSessions(res.data?.sessions || []);
+      })
+      .catch(() => {
+        if (active) setSessions([]);
       });
     return () => { active = false; };
   }, []);
@@ -135,15 +160,34 @@ export default function FeeStructureForm({
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
   };
 
-  const removePeriod = (index) => {
+  const removePeriod = async (index) => {
+    const item = items[index];
+    if (item?.savedUuid && typeof item.savedUuid === 'string') {
+      setSavingIndex(index);
+      try {
+        await academicCourseFeeService.remove(item.savedUuid);
+        toast.success(`${periodLabelFor(feeType, item.periodNumber)} deleted`);
+      } catch (err) {
+        toast.error(err?.response?.data?.message || err?.message || 'Failed to delete period');
+        setSavingIndex(null);
+        return;
+      } finally {
+        setSavingIndex(null);
+      }
+    }
+
     setItems((prev) => prev
       .filter((_, i) => i !== index)
-      .map((item, i) => (item.savedUuid ? item : { ...item, periodNumber: i + 1 })));
+      .map((row, i) => (row.savedUuid ? row : { ...row, periodNumber: i + 1 })));
   };
 
   const handleFeeTypeChange = (nextType) => {
-    if (hasSaved) {
+    if (hasSaved && !isEditing) {
       toast.error(`Fee type can't change after a ${periodNoun.toLowerCase()} is saved`);
+      return;
+    }
+    if (isEditing && hasSaved) {
+      toast.error('Fee type can’t change while periods already exist for this structure');
       return;
     }
     setFeeType(nextType);
@@ -170,6 +214,7 @@ export default function FeeStructureForm({
     if (!universityId) next.universityId = 'Select a university';
     if (!courseId) next.courseId = 'Select a course';
     if (!specializationId) next.specializationId = 'Select a specialization';
+    if (!sessionId) next.sessionId = 'Select a session';
     if (!feeType) next.feeType = 'Select a fee type';
     if (!(Number(totalPeriods) > 0)) next.totalPeriods = 'Enter how many periods this course has';
     if (calcItemTotal(items[index]) <= 0) {
@@ -180,38 +225,51 @@ export default function FeeStructureForm({
   };
 
   const savePeriod = async (index) => {
-    if (items[index].savedUuid) return true;
     if (!validatePeriod(index)) return false;
 
     const universityRef = selectedUniversity?.uuid || selectedUniversity?.id || universityId;
     const courseRef = selectedCourse?.uuid || selectedCourse?.id || courseId;
 
-    if (!universityRef || !courseRef || !specializationId) {
-      const message = 'University, course, and specialization are required';
+    if (!universityRef || !courseRef || !specializationId || !sessionId) {
+      const message = 'University, course, specialization, and session are required';
       toast.error(message);
       setErrors((prev) => ({ ...prev, items: message }));
       return false;
     }
 
     const item = items[index];
+    const amount = calcItemTotal(item);
+    const payload = {
+      universityId: universityRef,
+      courseId: courseRef,
+      specializationId,
+      sessionId,
+      feeType,
+      totalPeriods: Number(totalPeriods),
+      periodNumber: item.periodNumber,
+      periodLabel: periodLabelFor(feeType, item.periodNumber),
+      amount,
+      currency,
+      perSemesterFee,
+      perYearFee,
+      totalSem,
+      totalYears,
+    };
+
     setSavingIndex(index);
     try {
-      const created = await academicCourseFeeService.create({
-        universityId: universityRef,
-        courseId: courseRef,
-        specializationId,
-        feeType,
-        totalPeriods: Number(totalPeriods),
-        periodNumber: item.periodNumber,
-        periodLabel: periodLabelFor(feeType, item.periodNumber),
-        amount: calcItemTotal(item),
-        currency,
-      });
-      updateItem(index, {
-        savedUuid: created?.uuid || true,
-        totalFee: calcItemTotal(item),
-      });
-      toast.success(`${periodLabelFor(feeType, item.periodNumber)} saved`);
+      if (item.savedUuid && typeof item.savedUuid === 'string') {
+        await academicCourseFeeService.update(item.savedUuid, payload);
+        updateItem(index, { totalFee: amount });
+        toast.success(`${periodLabelFor(feeType, item.periodNumber)} updated`);
+      } else {
+        const created = await academicCourseFeeService.create(payload);
+        updateItem(index, {
+          savedUuid: created?.uuid || true,
+          totalFee: amount,
+        });
+        toast.success(`${periodLabelFor(feeType, item.periodNumber)} saved`);
+      }
       return true;
     } catch (err) {
       const message = err?.response?.data?.message
@@ -237,6 +295,31 @@ export default function FeeStructureForm({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (isEditing) {
+      for (let index = 0; index < items.length; index += 1) {
+        const ok = await savePeriod(index);
+        if (!ok) return;
+      }
+      onSubmit?.({
+        universityId: selectedUniversity?.uuid || selectedUniversity?.id || universityId,
+        courseId: selectedCourse?.uuid || selectedCourse?.id || courseId,
+        specializationId,
+        sessionId,
+        feeType,
+        currency,
+        status,
+        totalPeriods: Number(totalPeriods),
+        perSemesterFee,
+        perYearFee,
+        totalSem,
+        totalYears,
+        items,
+        created: items.filter((item) => item.savedUuid),
+      });
+      return;
+    }
+
     const lastIndex = items.length - 1;
 
     if (!items[lastIndex].savedUuid && calcItemTotal(items[lastIndex]) > 0) {
@@ -253,16 +336,19 @@ export default function FeeStructureForm({
       universityId: selectedUniversity?.uuid || selectedUniversity?.id || universityId,
       courseId: selectedCourse?.uuid || selectedCourse?.id || courseId,
       specializationId,
+      sessionId,
       feeType,
       currency,
       status,
       totalPeriods: Number(totalPeriods),
+      perSemesterFee,
+      perYearFee,
+      totalSem,
+      totalYears,
       items,
       created: items.filter((item) => item.savedUuid),
     });
   };
-
-  const lockHeader = hasSaved || Boolean(defaultValues?.id);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -273,7 +359,7 @@ export default function FeeStructureForm({
             value={universityId}
             onChange={handleUniversityChange}
             error={Boolean(errors.universityId)}
-            disabled={lockHeader}
+            disabled={lockIdentity || isEditing}
           />
         </FormField>
         <FormField label="Course *" error={errors.courseId}>
@@ -283,7 +369,7 @@ export default function FeeStructureForm({
             value={courseId}
             onChange={handleCourseChange}
             error={Boolean(errors.courseId)}
-            disabled={lockHeader}
+            disabled={lockIdentity || isEditing}
             includeUnlinked
           />
         </FormField>
@@ -302,7 +388,7 @@ export default function FeeStructureForm({
             className="input"
             value={specializationId}
             onChange={(e) => setSpecializationId(e.target.value)}
-            disabled={lockHeader || !specializations.length}
+            disabled={lockIdentity || isEditing || !specializations.length}
           >
             <option value="">
               {specializations.length ? 'Select specialization' : 'No specializations available'}
@@ -314,12 +400,43 @@ export default function FeeStructureForm({
             ))}
           </select>
         </FormField>
+        <FormField
+          label="Session *"
+          error={errors.sessionId}
+          hint={
+            !sessions.length
+              ? 'No sessions yet — create one under Education → Sessions'
+              : undefined
+          }
+        >
+          <select
+            className="input"
+            value={sessionId}
+            onChange={(e) => setSessionId(e.target.value)}
+            disabled={lockIdentity || !sessions.length}
+          >
+            <option value="">
+              {sessions.length ? 'Select session' : 'No sessions available'}
+            </option>
+            {sessions.map((session) => (
+              <option key={session.id} value={session.id}>
+                {session.name}
+                {session.start_date || session.expiry_date
+                  ? ` (${[
+                      session.start_date ? new Date(session.start_date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : null,
+                      session.expiry_date ? new Date(session.expiry_date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : null,
+                    ].filter(Boolean).join(' – ')})`
+                  : ''}
+              </option>
+            ))}
+          </select>
+        </FormField>
         <FormField label="Currency">
           <select
             className="input"
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
-            disabled={lockHeader}
+            disabled={lockIdentity}
           >
             {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -331,7 +448,7 @@ export default function FeeStructureForm({
                 key={type.value}
                 type="button"
                 onClick={() => handleFeeTypeChange(type.value)}
-                disabled={Boolean(defaultValues?.id)}
+                disabled={hasSaved}
                 className={`rounded-lg border px-3 py-2 text-sm font-medium disabled:opacity-50 ${
                   feeType === type.value
                     ? 'border-brand-600 bg-brand-50 text-brand-700'
@@ -353,8 +470,44 @@ export default function FeeStructureForm({
             min="1"
             className="input disabled:bg-slate-50"
             value={totalPeriods}
-            disabled={lockHeader}
+            disabled={lockIdentity}
             onChange={(e) => setTotalPeriods(e.target.value)}
+          />
+        </FormField>
+        <FormField label="Per Semester Fee">
+          <CurrencyInput
+            symbol={currencySymbol}
+            value={perSemesterFee}
+            onChange={setPerSemesterFee}
+            placeholder="0"
+          />
+        </FormField>
+        <FormField label="Per Year Fee">
+          <CurrencyInput
+            symbol={currencySymbol}
+            value={perYearFee}
+            onChange={setPerYearFee}
+            placeholder="0"
+          />
+        </FormField>
+        <FormField label="Total Semesters">
+          <input
+            type="number"
+            min="0"
+            className="input"
+            value={totalSem}
+            onChange={(e) => setTotalSem(e.target.value)}
+            placeholder="e.g. 6"
+          />
+        </FormField>
+        <FormField label="Total Years">
+          <input
+            type="number"
+            min="0"
+            className="input"
+            value={totalYears}
+            onChange={(e) => setTotalYears(e.target.value)}
+            placeholder="e.g. 3"
           />
         </FormField>
         <FormField label="Status">
@@ -365,9 +518,15 @@ export default function FeeStructureForm({
       </div>
 
       <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
-        Each {periodNoun.toLowerCase()} is saved to the database on its own. Fill in the fees below and
-        click <strong>Save &amp; Add {periodNoun}</strong> to store it and start the next one.
-        {hasSaved && ` The university, course and specialization are locked once the first ${periodNoun.toLowerCase()} is saved.`}
+        {isEditing
+          ? <>Edit any period amounts below, then click <strong>Save</strong> on that row or <strong>Done</strong> to update all periods.</>
+          : (
+            <>
+              Each {periodNoun.toLowerCase()} is saved to the database on its own. Fill in the fees below and
+              click <strong>Save &amp; Add {periodNoun}</strong> to store it and start the next one.
+              {hasSaved && ` The university, course and specialization are locked once the first ${periodNoun.toLowerCase()} is saved.`}
+            </>
+          )}
       </p>
 
       <div className="flex items-center justify-between">
@@ -401,6 +560,8 @@ export default function FeeStructureForm({
               const rowOpen = expanded[index];
               const isSaved = Boolean(item.savedUuid);
               const isSaving = savingIndex === index;
+              // Create flow locks a row after save; edit keeps amounts editable.
+              const rowReadOnly = isSaved && !isEditing;
 
               return (
                 <Fragment key={item.savedUuid || `period-${index}`}>
@@ -419,40 +580,45 @@ export default function FeeStructureForm({
                       {periodLabelFor(feeType, item.periodNumber || index + 1)}
                     </td>
                     <td className="px-3 py-2">
-                      <CurrencyInput symbol={currencySymbol} disabled={isSaved} value={item.tuitionFee} onChange={(v) => updateItem(index, { tuitionFee: v })} />
+                      <CurrencyInput symbol={currencySymbol} disabled={rowReadOnly} value={item.tuitionFee} onChange={(v) => updateItem(index, { tuitionFee: v })} />
                     </td>
                     <td className="px-3 py-2">
-                      <CurrencyInput symbol={currencySymbol} disabled={isSaved} value={item.otherFee} onChange={(v) => updateItem(index, { otherFee: v })} />
+                      <CurrencyInput symbol={currencySymbol} disabled={rowReadOnly} value={item.otherFee} onChange={(v) => updateItem(index, { otherFee: v })} />
                     </td>
                     {showAdvanced && (
                       <>
                         <td className="px-3 py-2">
-                          <CurrencyInput symbol={currencySymbol} disabled={isSaved} value={item.admissionFee} onChange={(v) => updateItem(index, { admissionFee: v })} />
+                          <CurrencyInput symbol={currencySymbol} disabled={rowReadOnly} value={item.admissionFee} onChange={(v) => updateItem(index, { admissionFee: v })} />
                         </td>
                         <td className="px-3 py-2">
-                          <CurrencyInput symbol={currencySymbol} disabled={isSaved} value={item.examFee} onChange={(v) => updateItem(index, { examFee: v })} />
+                          <CurrencyInput symbol={currencySymbol} disabled={rowReadOnly} value={item.examFee} onChange={(v) => updateItem(index, { examFee: v })} />
                         </td>
                         <td className="px-3 py-2">
-                          <CurrencyInput symbol={currencySymbol} disabled={isSaved} value={item.registrationFee} onChange={(v) => updateItem(index, { registrationFee: v })} />
+                          <CurrencyInput symbol={currencySymbol} disabled={rowReadOnly} value={item.registrationFee} onChange={(v) => updateItem(index, { registrationFee: v })} />
                         </td>
                       </>
                     )}
                     <td className="px-3 py-2 font-semibold text-slate-900">{formatMoney(totals.rows[index], currency)}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-end gap-1">
-                        {isSaved ? (
+                        {rowReadOnly ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
                             <Check className="h-3 w-3" /> Saved
                           </span>
                         ) : (
                           <>
+                            {isSaved && isEditing ? (
+                              <span className="mr-1 hidden text-[10px] font-medium uppercase tracking-wide text-emerald-700 sm:inline">
+                                Existing
+                              </span>
+                            ) : null}
                             <button
                               type="button"
                               className="rounded p-1 text-brand-600 hover:bg-brand-50 disabled:opacity-40"
                               onClick={() => savePeriod(index)}
                               disabled={isSaving}
-                              aria-label={`Save ${periodNoun.toLowerCase()}`}
-                              title={`Save this ${periodNoun.toLowerCase()}`}
+                              aria-label={isSaved ? `Update ${periodNoun.toLowerCase()}` : `Save ${periodNoun.toLowerCase()}`}
+                              title={isSaved ? `Update this ${periodNoun.toLowerCase()}` : `Save this ${periodNoun.toLowerCase()}`}
                             >
                               {isSaving
                                 ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -480,25 +646,25 @@ export default function FeeStructureForm({
                           {!showAdvanced && (
                             <>
                               <FormField label="Admission Fee">
-                                <CurrencyInput symbol={currencySymbol} disabled={isSaved} value={item.admissionFee} onChange={(v) => updateItem(index, { admissionFee: v })} />
+                                <CurrencyInput symbol={currencySymbol} disabled={rowReadOnly} value={item.admissionFee} onChange={(v) => updateItem(index, { admissionFee: v })} />
                               </FormField>
                               <FormField label="Examination Fee">
-                                <CurrencyInput symbol={currencySymbol} disabled={isSaved} value={item.examFee} onChange={(v) => updateItem(index, { examFee: v })} />
+                                <CurrencyInput symbol={currencySymbol} disabled={rowReadOnly} value={item.examFee} onChange={(v) => updateItem(index, { examFee: v })} />
                               </FormField>
                               <FormField label="Registration Fee">
-                                <CurrencyInput symbol={currencySymbol} disabled={isSaved} value={item.registrationFee} onChange={(v) => updateItem(index, { registrationFee: v })} />
+                                <CurrencyInput symbol={currencySymbol} disabled={rowReadOnly} value={item.registrationFee} onChange={(v) => updateItem(index, { registrationFee: v })} />
                               </FormField>
                             </>
                           )}
                           <FormField label="Fee nature">
-                            <select className="input" disabled={isSaved} value={item.feeNature || 'RECURRING'} onChange={(e) => updateItem(index, { feeNature: e.target.value })}>
+                            <select className="input" disabled={rowReadOnly} value={item.feeNature || 'RECURRING'} onChange={(e) => updateItem(index, { feeNature: e.target.value })}>
                               {FEE_NATURES.map((n) => <option key={n.value} value={n.value}>{n.label}</option>)}
                             </select>
                           </FormField>
                           <FormField label="Refund policy">
                             <select
                               className="input"
-                              disabled={isSaved}
+                              disabled={rowReadOnly}
                               value={item.isRefundable ? 'REFUNDABLE' : 'NON_REFUNDABLE'}
                               onChange={(e) => updateItem(index, { isRefundable: e.target.value === 'REFUNDABLE' })}
                             >

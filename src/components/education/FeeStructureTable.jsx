@@ -11,6 +11,7 @@ export default function FeeStructureTable({ structures = [], onView, onEdit, onD
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <th className="px-4 py-3">Course</th>
+              <th className="px-4 py-3">Add Fees</th>
               <th className="px-4 py-3">University</th>
               <th className="px-4 py-3">Fee Type</th>
               <th className="px-4 py-3">Periods</th>
@@ -27,7 +28,13 @@ export default function FeeStructureTable({ structures = [], onView, onEdit, onD
                     {f.courseName}
                   </button>
                   <p className="text-xs text-slate-500">{f.specializationName || '—'}</p>
+                  {f.sessionName ? <p className="text-xs text-slate-400">Session: {f.sessionName}</p> : null}
                   <p className="font-mono text-xs text-slate-400">{f.courseCode}</p>
+                </td>
+                <td className="px-4 py-3">
+                  <button type="button" className="text-left font-medium hover:text-brand-600" onClick={() => onAddFees?.(f)}>
+                    Add Fees
+                  </button>
                 </td>
                 <td className="px-4 py-3">
                   <p>{f.universityName}</p>
