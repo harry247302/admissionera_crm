@@ -80,13 +80,10 @@ export default function FeeStructureForm({
   const [catalogSpecializations, setCatalogSpecializations] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [items, setItems] = useState(() => {
-    if (defaultValues?.items?.length) {
-      return defaultValues.items.map((item) => ({
-        ...emptyFeeItem(item.periodNumber, item.periodType),
-        ...item,
-      }));
-    }
-    return [emptyFeeItem(1, 'semester')];
+    if (defaultValues?.items?.length) return defaultValues.items.map((item) => ({ ...item }));
+    const type = defaultValues?.feeType || 'SEMESTER';
+    const periodType = type === 'YEAR' ? 'year' : type === 'ONE_TIME' ? 'one_time' : 'semester';
+    return [emptyFeeItem(1, periodType)];
   });
   const [expanded, setExpanded] = useState({});
   const [showAdvanced, setShowAdvanced] = useState(false);

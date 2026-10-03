@@ -1563,6 +1563,7 @@ const liveUniversityApprovalService = {
 export const sessionService = {
   getAll: async () => {
     const res = await api.get('/session');
+
     return {
       data: {
         sessions: res.data?.sessions || res.data?.data || [],
@@ -1571,9 +1572,9 @@ export const sessionService = {
   },
   create: (data) => api.post('/session/create', {
     name: data.name,
-    start_date: data.start_date,
-    expiry_date: data.expiry_date,
+    status: data.status !== false,
   }),
+  updateStatus: (id, status) => api.put(`/session/update/${id}`, { status: Boolean(status) }),
 };
 
 export const universityService = liveUniversityService;

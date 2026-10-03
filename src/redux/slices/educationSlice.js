@@ -163,6 +163,37 @@ export const deleteSpecialization = createAsyncThunk('education/deleteSpecializa
   }
 });
 
+export const fetchSessions = createAsyncThunk(
+  'education/fetchSessions',
+  async (_, { rejectWithValue }) => {
+    try {
+      const res = await sessionService.getAll();
+      return res.data.sessions;
+    } catch (err) {
+      return rejectWithValue(fail(err, 'Failed to load sessions'));
+    }
+  },
+  {
+    condition: (options, { getState }) => {
+      const { sessionsLoading, sessionsLoaded } = getState().education;
+      if (sessionsLoading) return false;
+      return Boolean(options?.force) || !sessionsLoaded;
+    },
+  }
+);
+
+export const updateSessionStatus = createAsyncThunk(
+  'education/updateSessionStatus',
+  async ({ id, status }, { rejectWithValue }) => {
+    try {
+      await sessionService.updateStatus(id, status);
+      return { id, status };
+    } catch (err) {
+      return rejectWithValue(fail(err, 'Failed to update session status'));
+    }
+  }
+);
+
 export const createSession = createAsyncThunk('education/createSession', async (data, { rejectWithValue }) => {
   try {
     const res = await sessionService.create(data);
@@ -241,6 +272,10 @@ const educationSlice = createSlice({
     specializationFilters: {},
     feeFilters: {},
     sessions: [],
+    sessionsLoading: false,
+    sessionsLoaded: false,
+    sessionsError: null,
+    sessionStatusUpdating: {},
     loading: false,
     detailLoading: false,
     saving: false,
@@ -331,6 +366,33 @@ const educationSlice = createSlice({
         state.specializations = state.specializations.filter(
           (s) => String(s.uuid || s.id) !== String(action.payload)
         );
+      })
+
+      .addCase(fetchSessions.pending, (state) => { state.sessionsLoading = true; state.sessionsError = null; })
+      .addCase(fetchSessions.fulfilled, (state, action) => {
+        state.sessionsLoading = false;
+        state.sessionsLoaded = true;
+        state.sessions = action.payload || [];
+      })
+      .addCase(fetchSessions.rejected, (state, action) => {
+        state.sessionsLoading = false;
+        state.sessionsError = action.payload || 'Failed to load sessions';
+      })
+
+      .addCase(updateSessionStatus.pending, (state, action) => {
+        const { id, status, previous } = action.meta.arg;
+        state.sessionStatusUpdating[id] = previous ?? null;
+        const session = state.sessions.find((item) => String(item.id) === String(id));
+        if (session) session.status = status;
+      })
+      .addCase(updateSessionStatus.fulfilled, (state, action) => {
+        delete state.sessionStatusUpdating[action.payload.id];
+      })
+      .addCase(updateSessionStatus.rejected, (state, action) => {
+        const { id } = action.meta.arg;
+        const session = state.sessions.find((item) => String(item.id) === String(id));
+        if (session) session.status = state.sessionStatusUpdating[id];
+        delete state.sessionStatusUpdating[id];
       })
 
       .addCase(createSession.pending, (state) => { state.saving = true; })

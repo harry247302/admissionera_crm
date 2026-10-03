@@ -1,17 +1,25 @@
 import { useForm } from 'react-hook-form';
+import { Check } from 'lucide-react';
 import FormField from './FormField';
 
 export default function SessionForm({ onSubmit, loading, onCancel }) {
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm({
     defaultValues: {
       name: '',
-      start_date: '',
-      expiry_date: '',
+      status: true,
     },
   });
 
+  const isActive = watch('status');
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form
+      onSubmit={handleSubmit((data) => onSubmit({
+        name: data.name,
+        status: Boolean(data.status),
+      }))}
+      className="space-y-5"
+    >
       <FormField label="Session Name *" error={errors.name?.message}>
         <input
           className="input"
@@ -19,22 +27,26 @@ export default function SessionForm({ onSubmit, loading, onCancel }) {
           {...register('name', { required: 'Name is required' })}
         />
       </FormField>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <FormField label="Start Date *" error={errors.start_date?.message}>
-          <input
-            type="date"
-            className="input"
-            {...register('start_date', { required: 'Start date is required' })}
-          />
-        </FormField>
-        <FormField label="Expiry Date *" error={errors.expiry_date?.message}>
-          <input
-            type="date"
-            className="input"
-            {...register('expiry_date', { required: 'Expiry date is required' })}
-          />
-        </FormField>
-      </div>
+
+      <FormField label="Status">
+        <label className="mt-1 flex cursor-pointer items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-slate-900">
+              {isActive ? 'Active' : 'Inactive'}
+            </p>
+            <p className="text-xs text-slate-500">
+              {isActive ? 'This session is available for use.' : 'This session is hidden from selection.'}
+            </p>
+          </div>
+          <span className="relative inline-flex items-center">
+            <input type="checkbox" className="peer sr-only" {...register('status')} />
+            <span className="h-7 w-12 rounded-full bg-slate-300 transition peer-checked:bg-emerald-500" />
+            <span className="absolute left-0.5 top-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-emerald-600 shadow transition peer-checked:translate-x-5">
+              {isActive ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : null}
+            </span>
+          </span>
+        </label>
+      </FormField>
 
       <div className="flex justify-end gap-3">
         {onCancel && (
