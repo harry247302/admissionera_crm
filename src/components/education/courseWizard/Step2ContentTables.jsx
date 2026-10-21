@@ -3,6 +3,7 @@ import CourseContentTablesEditor from './CourseContentTablesEditor';
 export default function Step2ContentTables({
   contentTables = [],
   onContentTablesChange,
+  courseId,
 }) {
   return (
     <div className="space-y-4">
@@ -16,6 +17,7 @@ export default function Step2ContentTables({
         mode="tables"
         value={contentTables}
         onChange={onContentTablesChange}
+        courseId={courseId}
       />
     </div>
   );

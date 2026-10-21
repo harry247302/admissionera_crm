@@ -139,7 +139,7 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
         <FormField
           label="Logo"
           error={logoError}
-          hint="Images only, max 2MB. Saved as WebP on the server."
+          hint="Images only, 400x400px max 2MB. Saved as WebP on the server."
         >
           <input
             type="file"
@@ -155,8 +155,9 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
         <FormField
           label="Banner"
           error={bannerError}
-          hint="Images only, max 2MB. Saved as WebP on the server."
+          hint="Images only, 1920x800px max 2MB. Saved as WebP on the server."
         >
+          
           <input
             type="file"
             accept="image/*"

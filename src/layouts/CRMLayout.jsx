@@ -27,6 +27,7 @@ const educationItems = [
   { to: '/crm/education/specializations', label: 'Specializations', icon: Layers },
   { to: '/crm/education/admissions', label: 'Sessions', icon: GraduationCap },
   { to: '/crm/education/fees', label: 'Course Fees', icon: IndianRupee },
+  
 ];
 
 export default function CRMLayout() {

@@ -1,4 +1,6 @@
+import { useEffect, useRef, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
+import { counselorService } from '../../../services/crmService';
 
 const newRow = (columns = []) => ({
   clientId: crypto.randomUUID(),
@@ -77,10 +79,41 @@ export default function CourseContentTablesEditor({
   paragraphs = [],
   onParagraphsChange,
   mode = 'all',
+  courseId,
+  counsellorId,
 }) {
   const tables = value;
   const showTables = mode === 'all' || mode === 'tables';
   const showParagraphs = mode === 'all' || mode === 'paragraphs';
+  const [tablesLoading, setTablesLoading] = useState(false);
+  const [tablesLoadError, setTablesLoadError] = useState('');
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  useEffect(() => {
+    if (!showTables || (!courseId && !counsellorId)) return undefined;
+
+    let cancelled = false;
+    setTablesLoading(true);
+    setTablesLoadError('');
+
+    (async () => {
+      try {
+        const rows = await counselorService.getContentTables({ courseId, counsellorId });
+        if (cancelled) return;
+        onChangeRef.current?.(mapApiTablesToEditor(rows));
+      } catch (err) {
+        if (cancelled) return;
+        setTablesLoadError(err?.response?.data?.message || err?.message || 'Failed to load content tables');
+      } finally {
+        if (!cancelled) setTablesLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId, counsellorId, showTables]);
 
   const setTables = (next) => onChange?.(next);
   const setParagraphs = (next) => onParagraphsChange?.(next);
@@ -187,7 +220,10 @@ export default function CourseContentTablesEditor({
           </button>
         </div>
 
-        {!tables.length && (
+        {tablesLoading ? <p className="text-sm text-slate-500">Loading tables…</p> : null}
+        {tablesLoadError ? <p className="text-xs text-red-600">{tablesLoadError}</p> : null}
+
+        {!tables.length && !tablesLoading && (
           <div className="rounded-lg border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
             No tables yet. Click &quot;Add Table&quot; to create one.
           </div>

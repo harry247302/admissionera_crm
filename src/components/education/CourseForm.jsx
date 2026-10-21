@@ -66,12 +66,6 @@ export default function CourseForm({
     let cancelled = false;
     (async () => {
       try {
-        if (!defaultValues?.contentTables?.length) {
-          const res = await courseContentTableService.getByCourse(courseId);
-          if (!cancelled && res.data?.length) {
-            setContentTables(mapApiTablesToEditor(res.data));
-          }
-        }
         if (!defaultValues?.contentParagraphs?.length) {
           const res = await courseContentTableService.getParagraphsByCourse(courseId);
           if (!cancelled && res.data?.length) {
@@ -84,7 +78,7 @@ export default function CourseForm({
     })();
 
     return () => { cancelled = true; };
-  }, [courseId, defaultValues?.contentTables, defaultValues?.contentParagraphs]);
+  }, [courseId, defaultValues?.contentParagraphs]);
 
   const goNext = async () => {
     if (step === 0) {
@@ -130,6 +124,7 @@ export default function CourseForm({
         <Step2ContentTables
           contentTables={contentTables}
           onContentTablesChange={setContentTables}
+          courseId={courseId}
         />
       )}
 
