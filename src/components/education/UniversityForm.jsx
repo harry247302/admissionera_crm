@@ -13,6 +13,7 @@ const resolveAssetUrl = (path) => {
   return `${ASSET_BASE}${path.startsWith('/') ? path : `/${path}`}`;
 };
 
+
 export default function UniversityForm({ defaultValues, onSubmit, loading, onCancel }) {
   const [logoFile, setLogoFile] = useState(null);
   const [bannerFile, setBannerFile] = useState(null);
@@ -20,7 +21,44 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
   const [bannerPreview, setBannerPreview] = useState(resolveAssetUrl(defaultValues?.banner));
   const [logoError, setLogoError] = useState('');
   const [bannerError, setBannerError] = useState('');
+  const [approvals, setApprovals] = useState([]);
+  const [approvalsLoading, setApprovalsLoading] = useState(false);
+  const [approvalsError, setApprovalsError] = useState("");
+  useEffect(() => {
+    const fetchApprovals = async () => {
+      try {
+        setApprovalsLoading(true);
+        setApprovalsError("");
 
+        const response = await fetch(
+          "https://backend.admissionera.com/api/approvals/get-approvals"
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch approvals");
+        }
+
+        const result = await response.json();
+
+        // Adjust this according to the actual API response.
+        const data = Array.isArray(result)
+          ? result
+          : result.data ?? result.approvals ?? [];
+
+        setApprovals(data);
+      } catch (error) {
+        setApprovalsError(
+          error instanceof Error
+            ? error.message
+            : "Something went wrong"
+        );
+      } finally {
+        setApprovalsLoading(false);
+      }
+    };
+
+    fetchApprovals();
+  }, []);
   const { register, handleSubmit, control, formState: { errors } } = useForm({
     defaultValues: {
       status: 'ACTIVE',
@@ -77,6 +115,7 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
       ...data,
       short_name: data.code || data.short_name,
       logo: logoFile || undefined,
+      approvals:approvals || [],
       banner: bannerFile || undefined,
       existingLogo: defaultValues?.logo || '',
       existingBanner: defaultValues?.banner || '',
@@ -137,18 +176,44 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField
-          label="Logo"
-          error={logoError}
-          hint="Images only, 400x400px max 2MB. Saved as WebP on the server."
+          label="Approvals"
+          error={approvalsError}
+          hint="Select the approvals applicable to this university."
         >
-          <input
-            type="file"
-            accept="image/*"
-            className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100"
-            onChange={(e) => pickImage(e.target.files?.[0], setLogoFile, setLogoError, e.target)}
-          />
-          {logoPreview && (
-            <img src={logoPreview} alt="Logo preview" className="mt-3 h-20 w-20 rounded-lg border border-slate-200 object-contain bg-white" />
+          {approvalsLoading ? (
+            <p className="text-sm text-slate-500">
+              Loading approvals...
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {approvals.map((approval, index) => {
+                const id = approval.id ?? approval.approval_id ?? index;
+                const label =
+                  approval.name ?? approval.title ?? `Approval ${index + 1}`;
+
+                return (
+                  <label
+                    key={id}
+                    className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50"
+                  >
+                    <input
+                      type="checkbox"
+                      value={String(id)}
+                      className="h-4 w-4 rounded border-slate-300"
+                    />
+                    <span className="text-sm text-slate-700">
+                      {label}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+
+          {!approvalsLoading && !approvalsError && approvals.length === 0 && (
+            <p className="text-sm text-slate-500">
+              No approvals found.
+            </p>
           )}
         </FormField>
 
@@ -157,7 +222,7 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
           error={bannerError}
           hint="Images only, 1920x800px max 2MB. Saved as WebP on the server."
         >
-          
+
           <input
             type="file"
             accept="image/*"
