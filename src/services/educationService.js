@@ -672,6 +672,19 @@ const mapUniversity = (row = {}) => {
     return value || '';
   };
 
+  const parseApprovals = (value) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        return value.split(',').map((s) => s.trim()).filter(Boolean);
+      }
+    }
+    return [];
+  };
+
   return {
     id: row.uuid || row.id,
     uuid: row.uuid || row.id,
@@ -690,6 +703,7 @@ const mapUniversity = (row = {}) => {
     features: fromTextArray(row.features),
     admission_process: fromTextArray(row.admission_process || row.admissionProcess),
     career: fromTextArray(row.career),
+    approvals: parseApprovals(row.approvals),
     status: row.status || (row.is_active === false ? 'INACTIVE' : 'ACTIVE'),
     createdAt: row.createdAt || row.created_at,
     updatedAt: row.updatedAt || row.updated_at,
@@ -699,7 +713,8 @@ const mapUniversity = (row = {}) => {
 const buildUniversityFormData = (data = {}) => {
   const formData = new FormData();
   formData.append('name', data.name || '');
-  formData.append('short_name', data.code || data.short_name || '');
+  formData.append('short_name', data.short_name || data.code || '');
+  formData.append('code', data.code || data.short_name || '');
   if (data.type) formData.append('type', data.type);
   if (data.description != null) formData.append('description', data.description);
   if (data.website != null) formData.append('website', data.website);
@@ -713,6 +728,14 @@ const buildUniversityFormData = (data = {}) => {
   if (data.admission_process != null) formData.append('admission_process', data.admission_process);
   if (data.career != null) formData.append('career', data.career);
   if (data.status) formData.append('status', data.status);
+
+  if (data.approvals != null) {
+    if (Array.isArray(data.approvals)) {
+      formData.append('approvals', JSON.stringify(data.approvals));
+    } else {
+      formData.append('approvals', data.approvals);
+    }
+  }
 
   if (data.logo instanceof File) {
     formData.append('logo', data.logo);

@@ -14,6 +14,70 @@ const resolveAssetUrl = (path) => {
 };
 
 
+const formatApprovalLabel = (approval) => {
+  if (typeof approval === 'object' && approval !== null) {
+    return approval.approval_name || approval.name || approval.title || 'Approval';
+  }
+  if (typeof approval === 'string') {
+    let name = approval.replace(/\.[^/.]+$/, '');
+    name = name.replace(/^logo[-_]|[-_]logo$/gi, '');
+    name = name.replace(/[-_]a[-_]plus[-_]plus/gi, ' A++');
+    name = name.replace(/[-_]a[-_]plus/gi, ' A+');
+    name = name.replace(/[-_]/g, ' ').trim();
+    return name.toUpperCase();
+  }
+  return String(approval);
+};
+
+const getApprovalKey = (item) => {
+  if (item == null) return '';
+  if (typeof item === 'string') return item.trim();
+  return (
+    item.approval_logo ||
+    item.logo ||
+    item.approval_name ||
+    item.name ||
+    item.title ||
+    item.id ||
+    item.uuid ||
+    ''
+  ).toString().trim();
+};
+
+const normalizeApprovalName = (str) => {
+  if (!str) return '';
+  let s = String(str).split('/').pop() || '';
+  s = s.replace(/\.[^/.]+$/, '');
+  s = s.replace(/^logo[-_]|[-_]logo$/gi, '');
+  s = s.replace(/[-_]a[-_]plus[-_]plus/gi, ' a++');
+  s = s.replace(/[-_]a[-_]plus/gi, ' a+');
+  s = s.replace(/[-_]/g, ' ').trim().toLowerCase();
+  return s;
+};
+
+const isApprovalMatch = (a, b) => {
+  if (!a || !b) return false;
+  const keyA = getApprovalKey(a);
+  const keyB = getApprovalKey(b);
+  if (keyA && keyB && keyA.toLowerCase() === keyB.toLowerCase()) return true;
+
+  const normA = normalizeApprovalName(keyA);
+  const normB = normalizeApprovalName(keyB);
+  if (normA && normB) {
+    if (normA === normB) return true;
+    const wordsA = normA.split(' ').filter(Boolean);
+    const wordsB = normB.split(' ').filter(Boolean);
+    if (wordsA.length && wordsB.length) {
+      if (wordsA.some((w) => w.length >= 3 && wordsB.includes(w))) return true;
+    }
+  }
+  return false;
+};
+
+const isApprovalSelected = (approval, list = []) => {
+  return list.some((item) => isApprovalMatch(item, approval));
+};
+
 export default function UniversityForm({ defaultValues, onSubmit, loading, onCancel }) {
   const [logoFile, setLogoFile] = useState(null);
   const [bannerFile, setBannerFile] = useState(null);
@@ -22,8 +86,22 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
   const [logoError, setLogoError] = useState('');
   const [bannerError, setBannerError] = useState('');
   const [approvals, setApprovals] = useState([]);
+  const [selectedApprovals, setSelectedApprovals] = useState(() => {
+    const initial = defaultValues?.approvals;
+    if (Array.isArray(initial)) return initial;
+    if (typeof initial === 'string') {
+      try {
+        const parsed = JSON.parse(initial);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        return initial.split(',').map((s) => s.trim()).filter(Boolean);
+      }
+    }
+    return [];
+  });
   const [approvalsLoading, setApprovalsLoading] = useState(false);
   const [approvalsError, setApprovalsError] = useState("");
+
   useEffect(() => {
     const fetchApprovals = async () => {
       try {
@@ -40,7 +118,6 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
 
         const result = await response.json();
 
-        // Adjust this according to the actual API response.
         const data = Array.isArray(result)
           ? result
           : result.data ?? result.approvals ?? [];
@@ -59,6 +136,59 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
 
     fetchApprovals();
   }, []);
+
+  // Pre-load existing approvals when editing a university if not already provided
+  useEffect(() => {
+    const universityId = defaultValues?.uuid || defaultValues?.id;
+    if (!universityId) return;
+
+    if (defaultValues?.approvals && defaultValues.approvals.length > 0) {
+      setSelectedApprovals(defaultValues.approvals);
+      return;
+    }
+
+    const fetchExistingApprovals = async () => {
+      try {
+        const response = await fetch(
+          `${ASSET_BASE}/api/academic/university-approvals/${universityId}`
+        );
+        if (!response.ok) return;
+        const result = await response.json();
+        const data = Array.isArray(result) ? result : result.data || [];
+        if (Array.isArray(data) && data.length > 0) {
+          setSelectedApprovals(data);
+        }
+      } catch {
+        // ignore error
+      }
+    };
+
+    fetchExistingApprovals();
+  }, [defaultValues?.id, defaultValues?.uuid, defaultValues?.approvals]);
+
+  // Once catalogue approvals are fetched, align selectedApprovals to catalogue items
+  useEffect(() => {
+    if (!approvals.length) return;
+    setSelectedApprovals((prev) => {
+      if (!prev.length) return prev;
+      const matched = approvals.filter((item) =>
+        prev.some((p) => isApprovalMatch(p, item))
+      );
+      return matched.length ? matched : prev;
+    });
+  }, [approvals]);
+
+  const handleToggleApproval = (approval) => {
+    setSelectedApprovals((prev) => {
+      const exists = prev.some((item) => isApprovalMatch(item, approval));
+      if (exists) {
+        return prev.filter((item) => !isApprovalMatch(item, approval));
+      } else {
+        return [...prev, approval];
+      }
+    });
+  };
+
   const { register, handleSubmit, control, formState: { errors } } = useForm({
     defaultValues: {
       status: 'ACTIVE',
@@ -115,7 +245,7 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
       ...data,
       short_name: data.code || data.short_name,
       logo: logoFile || undefined,
-      approvals:approvals || [],
+      approvals: selectedApprovals,
       banner: bannerFile || undefined,
       existingLogo: defaultValues?.logo || '',
       existingBanner: defaultValues?.banner || '',
@@ -176,44 +306,18 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField
-          label="Approvals"
-          error={approvalsError}
-          hint="Select the approvals applicable to this university."
+          label="Logo"
+          error={logoError}
+          hint="Images only, 400x400px max 2MB. Saved as WebP on the server."
         >
-          {approvalsLoading ? (
-            <p className="text-sm text-slate-500">
-              Loading approvals...
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {approvals.map((approval, index) => {
-                const id = approval.id ?? approval.approval_id ?? index;
-                const label =
-                  approval.name ?? approval.title ?? `Approval ${index + 1}`;
-
-                return (
-                  <label
-                    key={id}
-                    className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50"
-                  >
-                    <input
-                      type="checkbox"
-                      value={String(id)}
-                      className="h-4 w-4 rounded border-slate-300"
-                    />
-                    <span className="text-sm text-slate-700">
-                      {label}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-
-          {!approvalsLoading && !approvalsError && approvals.length === 0 && (
-            <p className="text-sm text-slate-500">
-              No approvals found.
-            </p>
+          <input
+            type="file"
+            accept="image/*"
+            className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100"
+            onChange={(e) => pickImage(e.target.files?.[0], setLogoFile, setLogoError, e.target)}
+          />
+          {logoPreview && (
+            <img src={logoPreview} alt="Logo preview" className="mt-3 h-20 w-20 rounded-lg border border-slate-200 object-contain bg-white" />
           )}
         </FormField>
 
@@ -222,7 +326,6 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
           error={bannerError}
           hint="Images only, 1920x800px max 2MB. Saved as WebP on the server."
         >
-
           <input
             type="file"
             accept="image/*"
@@ -234,6 +337,91 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
           )}
         </FormField>
       </div>
+
+      <FormField
+        label={`Approvals (${selectedApprovals.length} selected)`}
+        error={approvalsError}
+        hint="Select the approvals applicable to this university."
+      >
+        {approvalsLoading ? (
+          <p className="text-sm text-slate-500">
+            Loading approvals...
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {approvals.length > 0 && (
+              <div className="flex items-center justify-between text-xs text-slate-500">
+                <span>Select all that apply</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedApprovals([...approvals])}
+                    className="font-medium text-brand-600 hover:text-brand-700"
+                  >
+                    Select All
+                  </button>
+                  <span>•</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedApprovals([])}
+                    className="font-medium text-slate-500 hover:text-slate-700"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+              {approvals.map((approval, index) => {
+                const isSelected = isApprovalSelected(approval, selectedApprovals);
+                const label = formatApprovalLabel(approval);
+                const key = getApprovalKey(approval) || index;
+                const logoSrc = resolveAssetUrl(
+                  typeof approval === 'string'
+                    ? `/uploads/${approval}`
+                    : approval.approval_logo || approval.logo || ''
+                );
+
+                return (
+                  <label
+                    key={key}
+                    className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${
+                      isSelected
+                        ? 'border-brand-500 bg-brand-50/50 text-brand-900 shadow-sm ring-1 ring-brand-500/20'
+                        : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleToggleApproval(approval)}
+                      className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                    />
+                    {logoSrc && (
+                      <img
+                        src={logoSrc}
+                        alt={label}
+                        className="h-7 w-7 rounded border border-slate-200 bg-white object-contain p-0.5"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    )}
+                    <span className="text-sm font-medium">
+                      {label}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {!approvalsLoading && !approvalsError && approvals.length === 0 && (
+          <p className="text-sm text-slate-500">
+            No approvals found.
+          </p>
+        )}
+      </FormField>
 
       <FormField label="Description" hint="Supports headings, links, colors, highlights, and text formatting">
         <Controller

@@ -59,15 +59,47 @@ export default function Universities() {
   };
 
   const handleUpdate = async (data) => {
+    const uuid = editItem?.uuid || editItem?.id;
+    console.log("++++++++++++",data)  
+    console.log("+++++++++++++++++++uuid+++++++++++++++",uuid)    
+    if (!uuid) {
+      toast.error('University UUID is required');
+      return;
+    }
+
+    if (!data?.name?.trim()) {
+      toast.error('University name is required');
+      return;
+    }
+
     try {
-      await dispatch(updateUniversity({
-        id: editItem.uuid || editItem.id,
-        data,
+      const payload = {
+        ...data,
+        name: data.name?.trim(),
+        code: (data.code || data.short_name || '').trim(),
+        short_name: (data.short_name || data.code || '').trim(),
+        description: data.description ?? '',
+        website: data.website ?? '',
+        location: data.location ?? '',
+        grade: data.grade ?? '',
+        ratings: data.ratings !== '' && data.ratings != null ? Number(data.ratings) : null,
+        world_rank: data.world_rank !== '' && data.world_rank != null ? Number(data.world_rank) : null,
+        status: data.status || 'ACTIVE',
+        features: data.features ?? '',
+        admission_process: data.admission_process ?? '',
+        career: data.career ?? '',
+        approvals: Array.isArray(data.approvals) ? data.approvals : (data.approvals ? [data.approvals] : []),
+      };
+
+      const result = await dispatch(updateUniversity({
+        id: uuid,
+        data: payload,
       })).unwrap();
-      toast.success('University updated');
+
+      toast.success(result?.message || 'University updated successfully');
       setEditItem(null);
       dispatch(fetchUniversities({ ...filters, page, limit: PAGE_SIZE, sortBy: 'name' }));
-    } catch (err) {
+    } catch (err) { 
       toast.error(typeof err === 'string' ? err : err?.message || 'Failed to update university');
     }
   };
