@@ -14,7 +14,8 @@ const navItems = [
   { to: '/crm/followups', label: 'Follow-ups', icon: PhoneCall },
   { to: '/crm/tasks', label: 'Tasks', icon: CheckSquare },
   { to: '/crm/applications', label: 'Applications', icon: FileText },
-  { to: '/crm/admissions', label: 'Admissions', icon: GraduationCap },
+  { to: '/crm/admissions', label: 'Blogs & Admissions', icon: BookOpen },
+  
   { to: '/crm/counselors', label: 'Counselors', icon: UserCheck },
   { to: '/crm/activities', label: 'Activities', icon: Activity },
   { to: '/crm/reports', label: 'Reports', icon: BarChart3 },

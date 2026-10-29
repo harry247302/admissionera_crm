@@ -36,6 +36,7 @@ export default function App() {
           <Route path="counselors" element={<Counselors />} />
           <Route path="applications" element={<Applications />} />
           <Route path="admissions" element={<Admissions />} />
+          <Route path="blogs" element={<Admissions />} />
           <Route path="activities" element={<Activities />} />
           <Route path="reports" element={<Reports />} />
           <Route path="education" element={<EducationDashboard />} />
