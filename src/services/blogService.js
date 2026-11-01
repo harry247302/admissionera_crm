@@ -24,7 +24,117 @@ export const blogService = {
     const res = await api.delete(`/blogs/delete/${uuid}`);
     return res.data;
   },
+
+  // POST https://admissionera.com/api/blogs/create-table
+  createTable: async ({ blog_id, title, sort_order = 0 }) => {
+    const res = await api.post('/blogs/create-table', {
+      blog_id,
+      title: title || null,
+      sort_order: Number(sort_order) || 0,
+    });
+    return res.data;
+  },
+
+  // POST https://admissionera.com/api/blogs/create-rows
+  createRow: async ({ table_id, label, content = {}, sort_order = 0 }) => {
+    const res = await api.post('/blogs/create-rows', {
+      table_id,
+      label,
+      content,
+      sort_order: Number(sort_order) || 0,
+    });
+    return res.data;
+  },
+
+  // POST https://admissionera.com/api/blogs/add-paragraph
+  addParagraph: async ({ blog_id, title, content, sort_order = 0 }) => {
+    const res = await api.post('/blogs/add-paragraph', {
+      blog_id,
+      title: title || null,
+      content,
+      sort_order: Number(sort_order) || 0,
+    });
+    return res.data;
+  },
+
+  /**
+   * Save content tables and their nested rows for a blog, matching the course wizard architecture.
+   */
+  saveContentTables: async (blogId, tables = []) => {
+    const hasText = (val) => String(val ?? '').trim().length > 0;
+    const results = [];
+
+    for (const [tableIndex, table] of tables.entries()) {
+      const rows = (table.rows || []).filter((row) =>
+        Object.values(row.cells || {}).some(hasText)
+      );
+      if (!rows.length && !hasText(table.title)) continue;
+
+      const createdTableRes = await api.post('/blogs/create-table', {
+        blog_id: blogId,
+        title: table.title?.trim() || `Table ${tableIndex + 1}`,
+        sort_order: Number.isFinite(Number(table.sortOrder))
+          ? Number(table.sortOrder)
+          : tableIndex,
+      });
+
+      const tableData = createdTableRes.data?.data || createdTableRes.data;
+      const tableId = tableData?.id || tableData?.uuid;
+      if (!tableId) continue;
+
+      const createdRows = [];
+      for (const [rowIndex, row] of rows.entries()) {
+        const content = {};
+        (table.columns || []).forEach((col) => {
+          content[col] = String(row.cells?.[col] ?? '').trim();
+        });
+
+        const label =
+          content[table.columns?.[0]]?.trim() ||
+          Object.values(content).find(hasText) ||
+          `Row ${rowIndex + 1}`;
+
+        const createdRowRes = await api.post('/blogs/create-rows', {
+          table_id: tableId,
+          label: String(label),
+          content,
+          sort_order: Number.isFinite(Number(row.sortOrder))
+            ? Number(row.sortOrder)
+            : rowIndex,
+        });
+        createdRows.push(createdRowRes.data?.data || createdRowRes.data);
+      }
+
+      results.push({
+        ...tableData,
+        rows: createdRows,
+      });
+    }
+
+    return results;
+  },
+
+  /**
+   * Save content paragraphs for a blog, matching the course wizard architecture.
+   */
+  saveContentParagraphs: async (blogId, paragraphs = []) => {
+    const results = [];
+    for (const [index, paragraph] of paragraphs.entries()) {
+      const content = String(paragraph.content || '').trim();
+      if (!content) continue;
+
+      const res = await api.post('/blogs/add-paragraph', {
+        blog_id: blogId,
+        title: paragraph.title?.trim() || `Paragraph ${index + 1}`,
+        content,
+        sort_order: Number.isFinite(Number(paragraph.sortOrder))
+          ? Number(paragraph.sortOrder)
+          : index,
+      });
+      results.push(res.data?.data || res.data);
+    }
+    return results;
+  },
 };
 
 export default blogService;
-

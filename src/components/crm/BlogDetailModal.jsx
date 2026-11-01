@@ -1,4 +1,16 @@
-import { Calendar, Globe, Tag, User, ExternalLink, Edit2, Trash2, CheckCircle2, Clock, Archive } from 'lucide-react';
+import {
+  Calendar,
+  Globe,
+  Tag,
+  User,
+  Edit2,
+  Trash2,
+  CheckCircle2,
+  Clock,
+  Archive,
+  Table as TableIcon,
+  AlignLeft,
+} from 'lucide-react';
 import Modal from '../common/Modal';
 
 function formatDisplayDate(dateStr) {
@@ -50,6 +62,9 @@ export default function BlogDetailModal({
   const statusInfo = statusBadges[blog.status] || statusBadges.draft;
   const StatusIcon = statusInfo.icon;
 
+  const hasTables = Array.isArray(blog.contentTables) && blog.contentTables.length > 0;
+  const hasParagraphs = Array.isArray(blog.contentParagraphs) && blog.contentParagraphs.length > 0;
+
   return (
     <Modal open={open} onClose={onClose} title="Blog Article Details" size="xl">
       <div className="space-y-6">
@@ -70,7 +85,9 @@ export default function BlogDetailModal({
         {/* Title, Category & Status */}
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${statusInfo.style}`}>
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${statusInfo.style}`}
+            >
               <StatusIcon className="h-3.5 w-3.5" />
               {statusInfo.label}
             </span>
@@ -85,7 +102,9 @@ export default function BlogDetailModal({
           <h2 className="text-xl font-bold text-slate-900">{blog.title}</h2>
 
           <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span className="font-mono bg-slate-100 px-2 py-0.5 rounded">/blogs/{blog.slug}</span>
+            <span className="font-mono bg-slate-100 px-2 py-0.5 rounded">
+              /blogs/{blog.slug}
+            </span>
           </div>
         </div>
 
@@ -117,10 +136,103 @@ export default function BlogDetailModal({
         {/* Excerpt */}
         {blog.excerpt && (
           <div className="space-y-1.5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Excerpt / Overview</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Excerpt / Overview
+            </h3>
             <p className="text-sm leading-relaxed text-slate-700 whitespace-pre-line bg-white rounded-lg border border-slate-100 p-3.5">
               {blog.excerpt}
             </p>
+          </div>
+        )}
+
+        {/* Content Paragraphs */}
+        {hasParagraphs && (
+          <div className="space-y-3">
+            <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+              <AlignLeft className="h-4 w-4 text-brand-600" /> Content Paragraphs (
+              {blog.contentParagraphs.length})
+            </h3>
+            <div className="space-y-3">
+              {blog.contentParagraphs.map((para, pIdx) => (
+                <div
+                  key={para.clientId || para.id || pIdx}
+                  className="rounded-xl border border-slate-200 bg-white p-4 space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-slate-900 text-sm">
+                      {para.title || `Section ${pIdx + 1}`}
+                    </h4>
+                    {Number.isFinite(Number(para.sortOrder ?? para.sort_order)) && (
+                      <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500 font-mono">
+                        Order: {para.sortOrder ?? para.sort_order}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm leading-relaxed text-slate-700 whitespace-pre-line">
+                    {para.content}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Content Tables */}
+        {hasTables && (
+          <div className="space-y-3">
+            <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+              <TableIcon className="h-4 w-4 text-brand-600" /> Content Tables (
+              {blog.contentTables.length})
+            </h3>
+            <div className="space-y-4">
+              {blog.contentTables.map((tbl, tIdx) => (
+                <div
+                  key={tbl.clientId || tbl.id || tIdx}
+                  className="rounded-xl border border-slate-200 overflow-hidden bg-white"
+                >
+                  <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/75 px-4 py-2.5">
+                    <h4 className="font-semibold text-slate-900 text-sm">
+                      {tbl.title || `Table ${tIdx + 1}`}
+                    </h4>
+                    {Number.isFinite(Number(tbl.sortOrder ?? tbl.sort_order)) && (
+                      <span className="rounded bg-slate-200 px-2 py-0.5 text-[11px] text-slate-600 font-mono">
+                        Order: {tbl.sortOrder ?? tbl.sort_order}
+                      </span>
+                    )}
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 text-slate-600 uppercase border-b border-slate-200">
+                        <tr>
+                          {(tbl.columns || []).map((col) => (
+                            <th key={col} className="px-3 py-2 font-semibold">
+                              {col}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {(tbl.rows || []).map((row, rIdx) => (
+                          <tr key={row.clientId || row.id || rIdx} className="hover:bg-slate-50/50">
+                            {(tbl.columns || []).map((col) => {
+                              const cell =
+                                row.cells?.[col] ??
+                                (typeof row.content === 'object' ? row.content?.[col] : '') ??
+                                '';
+                              return (
+                                <td key={col} className="px-3 py-2 text-slate-700">
+                                  {cell || '—'}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -144,7 +256,9 @@ export default function BlogDetailModal({
         )}
 
         {/* SEO Meta Box */}
-        {(blog.meta_title || blog.meta_description || (Array.isArray(blog.meta_keywords) && blog.meta_keywords.length > 0)) && (
+        {(blog.meta_title ||
+          blog.meta_description ||
+          (Array.isArray(blog.meta_keywords) && blog.meta_keywords.length > 0)) && (
           <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
             <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-brand-700">
               <Globe className="h-3.5 w-3.5" /> Search Engine Preview (SEO)
@@ -157,7 +271,9 @@ export default function BlogDetailModal({
                 https://admissionera.com/blogs/{blog.slug}
               </p>
               <p className="text-xs text-slate-600 line-clamp-2">
-                {blog.meta_description || blog.excerpt || 'No meta description configured for this blog article.'}
+                {blog.meta_description ||
+                  blog.excerpt ||
+                  'No meta description configured for this blog article.'}
               </p>
             </div>
             {Array.isArray(blog.meta_keywords) && blog.meta_keywords.length > 0 && (
@@ -185,11 +301,7 @@ export default function BlogDetailModal({
           </button>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn-secondary"
-            >
+            <button type="button" onClick={onClose} className="btn-secondary">
               Close
             </button>
             <button
@@ -208,4 +320,3 @@ export default function BlogDetailModal({
     </Modal>
   );
 }
-

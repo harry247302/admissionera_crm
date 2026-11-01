@@ -180,11 +180,25 @@ export default function Admissions() {
   const handleFormSubmit = async (payload) => {
     try {
       if (editingBlog?.uuid) {
-        await dispatch(updateBlog({ uuid: editingBlog.uuid, data: payload })).unwrap();
-        toast.success('Blog updated successfully');
+        const res = await dispatch(updateBlog({ uuid: editingBlog.uuid, data: payload })).unwrap();
+        if (res?._contentWarning) {
+          toast.success(
+            `Blog updated, but some content items could not be saved: ${res._contentWarning}`,
+            { duration: 6000 }
+          );
+        } else {
+          toast.success('Blog and content updated successfully');
+        }
       } else {
-        await dispatch(createBlog(payload)).unwrap();
-        toast.success('Blog created successfully');
+        const res = await dispatch(createBlog(payload)).unwrap();
+        if (res?._contentWarning) {
+          toast.success(
+            `Blog created, but some content items could not be saved: ${res._contentWarning}`,
+            { duration: 6000 }
+          );
+        } else {
+          toast.success('Blog, content tables, and paragraphs created successfully');
+        }
       }
       setFormModalOpen(false);
       setEditingBlog(null);

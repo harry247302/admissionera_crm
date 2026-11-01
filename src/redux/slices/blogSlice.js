@@ -20,10 +20,43 @@ export const fetchBlogs = createAsyncThunk(
 
 export const createBlog = createAsyncThunk(
   'blogs/create',
-  async (blogData, { rejectWithValue }) => {
+  async (payload, { rejectWithValue }) => {
     try {
+      const { contentTables, contentParagraphs, ...blogData } = payload;
       const res = await blogService.create(blogData);
-      return res?.data;
+      const blog = res?.data || {};
+      const blogId = blog?.uuid || blog?.id;
+
+      if (blogId) {
+        const contentWarnings = [];
+        if (Array.isArray(contentTables) && contentTables.length) {
+          try {
+            const savedTables = await blogService.saveContentTables(blogId, contentTables);
+            blog.contentTables = savedTables;
+          } catch (tErr) {
+            console.error('Failed to save blog content tables:', tErr);
+            contentWarnings.push(
+              tErr.response?.data?.message || tErr.message || 'content tables error'
+            );
+          }
+        }
+        if (Array.isArray(contentParagraphs) && contentParagraphs.length) {
+          try {
+            const savedParas = await blogService.saveContentParagraphs(blogId, contentParagraphs);
+            blog.contentParagraphs = savedParas;
+          } catch (pErr) {
+            console.error('Failed to save blog content paragraphs:', pErr);
+            contentWarnings.push(
+              pErr.response?.data?.message || pErr.message || 'content paragraphs error'
+            );
+          }
+        }
+        if (contentWarnings.length) {
+          blog._contentWarning = contentWarnings.join('; ');
+        }
+      }
+
+      return blog;
     } catch (err) {
       return rejectWithValue(getErrorMessage(err, 'Failed to create blog'));
     }
@@ -34,8 +67,41 @@ export const updateBlog = createAsyncThunk(
   'blogs/update',
   async ({ uuid, data }, { rejectWithValue }) => {
     try {
-      const res = await blogService.update(uuid, data);
-      return res?.data;
+      const { contentTables, contentParagraphs, ...blogData } = data;
+      const res = await blogService.update(uuid, blogData);
+      const blog = res?.data || {};
+      const blogId = blog?.uuid || blog?.id || uuid;
+
+      if (blogId) {
+        const contentWarnings = [];
+        if (Array.isArray(contentTables) && contentTables.length) {
+          try {
+            const savedTables = await blogService.saveContentTables(blogId, contentTables);
+            blog.contentTables = savedTables;
+          } catch (tErr) {
+            console.error('Failed to save blog content tables:', tErr);
+            contentWarnings.push(
+              tErr.response?.data?.message || tErr.message || 'content tables error'
+            );
+          }
+        }
+        if (Array.isArray(contentParagraphs) && contentParagraphs.length) {
+          try {
+            const savedParas = await blogService.saveContentParagraphs(blogId, contentParagraphs);
+            blog.contentParagraphs = savedParas;
+          } catch (pErr) {
+            console.error('Failed to save blog content paragraphs:', pErr);
+            contentWarnings.push(
+              pErr.response?.data?.message || pErr.message || 'content paragraphs error'
+            );
+          }
+        }
+        if (contentWarnings.length) {
+          blog._contentWarning = contentWarnings.join('; ');
+        }
+      }
+
+      return blog;
     } catch (err) {
       return rejectWithValue(getErrorMessage(err, 'Failed to update blog'));
     }
