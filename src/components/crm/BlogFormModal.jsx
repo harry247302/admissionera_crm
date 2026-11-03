@@ -676,11 +676,12 @@ export default function BlogFormModal({
                 </span>
               </div>
             </div>
-
+             
             <CourseContentTablesEditor
               mode="tables"
               value={contentTables}
               onChange={setContentTables}
+              blogId={initialData?.uuid || initialData?.id}
             />
           </div>
         )}
@@ -702,6 +703,7 @@ export default function BlogFormModal({
               mode="paragraphs"
               paragraphs={contentParagraphs}
               onParagraphsChange={setContentParagraphs}
+              blogId={initialData?.uuid || initialData?.id}
             />
           </div>
         )}

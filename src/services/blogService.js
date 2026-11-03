@@ -25,7 +25,7 @@ export const blogService = {
     return res.data;
   },
 
-  // POST https://admissionera.com/api/blogs/create-table
+  // POST https://backend.admissionera.com/api/blogs/create-table
   createTable: async ({ blog_id, title, sort_order = 0 }) => {
     const res = await api.post('/blogs/create-table', {
       blog_id,
@@ -35,7 +35,7 @@ export const blogService = {
     return res.data;
   },
 
-  // POST https://admissionera.com/api/blogs/create-rows
+  // POST https://backend.admissionera.com/api/blogs/create-rows
   createRow: async ({ table_id, label, content = {}, sort_order = 0 }) => {
     const res = await api.post('/blogs/create-rows', {
       table_id,
@@ -46,7 +46,7 @@ export const blogService = {
     return res.data;
   },
 
-  // POST https://admissionera.com/api/blogs/add-paragraph
+  // POST https://backend.admissionera.com/api/blogs/add-paragraph
   addParagraph: async ({ blog_id, title, content, sort_order = 0 }) => {
     const res = await api.post('/blogs/add-paragraph', {
       blog_id,
@@ -55,6 +55,48 @@ export const blogService = {
       sort_order: Number(sort_order) || 0,
     });
     return res.data;
+  },
+
+  // GET https://backend.admissionera.com/api/blogs/get-content-tables
+  getContentTables: async (blogId) => {
+    try {
+      const res = await api.get('/blogs/get-content-tables', {
+        params: {
+          blog_id: blogId,
+          course_id: blogId,
+          id: blogId,
+        },
+      });
+      const data = res.data?.data ?? res.data?.tables ?? res.data;
+      return Array.isArray(data) ? data : [];
+    } catch (err) {
+      // Fallback in case backend route is /blogs/get-content-tables/:id
+      try {
+        const fallbackRes = await api.get(`/blogs/get-content-tables/${blogId}`);
+        const data = fallbackRes.data?.data ?? fallbackRes.data?.tables ?? fallbackRes.data;
+        return Array.isArray(data) ? data : [];
+      } catch {
+        throw err;
+      }
+    }
+  },
+
+  // GET https://backend.admissionera.com/api/blogs/fetch-paragraph/:id
+  getParagraphs: async (blogId) => {
+    try {
+      const res = await api.get(`/blogs/fetch-paragraph/${blogId}`);
+      const data = res.data?.data ?? res.data?.paragraphs ?? res.data;
+      return Array.isArray(data) ? data : [];
+    } catch (err) {
+      // Fallback in case route without leading slash is mounted as /blogsfetch-paragraph/:id
+      try {
+        const fallbackRes = await api.get(`/blogsfetch-paragraph/${blogId}`);
+        const data = fallbackRes.data?.data ?? fallbackRes.data?.paragraphs ?? fallbackRes.data;
+        return Array.isArray(data) ? data : [];
+      } catch {
+        throw err;
+      }
+    }
   },
 
   /**
