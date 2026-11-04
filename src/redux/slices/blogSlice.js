@@ -22,7 +22,7 @@ export const createBlog = createAsyncThunk(
   'blogs/create',
   async (payload, { rejectWithValue }) => {
     try {
-      const { contentTables, contentParagraphs, ...blogData } = payload;
+      const { contentTables, contentParagraphs, uuid, counsellor_id, ...blogData } = payload;
       const res = await blogService.create(blogData);
       const blog = res?.data || {};
       const blogId = blog?.uuid || blog?.id;
@@ -31,7 +31,9 @@ export const createBlog = createAsyncThunk(
         const contentWarnings = [];
         if (Array.isArray(contentTables) && contentTables.length) {
           try {
-            const savedTables = await blogService.saveContentTables(blogId, contentTables);
+            const savedTables = await blogService.saveContentTables(blogId, contentTables, {
+              counsellor_id,
+            });
             blog.contentTables = savedTables;
           } catch (tErr) {
             console.error('Failed to save blog content tables:', tErr);
@@ -42,7 +44,9 @@ export const createBlog = createAsyncThunk(
         }
         if (Array.isArray(contentParagraphs) && contentParagraphs.length) {
           try {
-            const savedParas = await blogService.saveContentParagraphs(blogId, contentParagraphs);
+            const savedParas = await blogService.saveContentParagraphs(blogId, contentParagraphs, {
+              counsellor_id,
+            });
             blog.contentParagraphs = savedParas;
           } catch (pErr) {
             console.error('Failed to save blog content paragraphs:', pErr);
@@ -67,7 +71,7 @@ export const updateBlog = createAsyncThunk(
   'blogs/update',
   async ({ uuid, data }, { rejectWithValue }) => {
     try {
-      const { contentTables, contentParagraphs, ...blogData } = data;
+      const { contentTables, contentParagraphs, uuid: _payloadUuid, counsellor_id, ...blogData } = data;
       const res = await blogService.update(uuid, blogData);
       const blog = res?.data || {};
       const blogId = blog?.uuid || blog?.id || uuid;
@@ -76,7 +80,9 @@ export const updateBlog = createAsyncThunk(
         const contentWarnings = [];
         if (Array.isArray(contentTables) && contentTables.length) {
           try {
-            const savedTables = await blogService.saveContentTables(blogId, contentTables);
+            const savedTables = await blogService.saveContentTables(blogId, contentTables, {
+              counsellor_id,
+            });
             blog.contentTables = savedTables;
           } catch (tErr) {
             console.error('Failed to save blog content tables:', tErr);
@@ -87,7 +93,9 @@ export const updateBlog = createAsyncThunk(
         }
         if (Array.isArray(contentParagraphs) && contentParagraphs.length) {
           try {
-            const savedParas = await blogService.saveContentParagraphs(blogId, contentParagraphs);
+            const savedParas = await blogService.saveContentParagraphs(blogId, contentParagraphs, {
+              counsellor_id,
+            });
             blog.contentParagraphs = savedParas;
           } catch (pErr) {
             console.error('Failed to save blog content paragraphs:', pErr);
@@ -178,7 +186,9 @@ const blogSlice = createSlice({
         if (action.payload?.uuid) {
           const idx = state.items.findIndex((b) => b.uuid === action.payload.uuid);
           if (idx !== -1) {
-            state.items[idx] = action.payload;
+            state.items[idx] = { ...state.items[idx], ...action.payload };
+          } else {
+            state.items.unshift(action.payload);
           }
         }
       })
