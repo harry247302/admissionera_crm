@@ -19,6 +19,7 @@ import CourseDetails from './pages/education/CourseDetails';
 import Specializations from './pages/education/Specializations';
 import CourseFees from './pages/education/CourseFees';
 import Sessions from './pages/education/Sessions';
+import Companies from './pages/education/Companies';
 
 export default function App() {
   return (
@@ -42,6 +43,8 @@ export default function App() {
           <Route path="education" element={<EducationDashboard />} />
           <Route path="education/universities" element={<Universities />} />
           <Route path="education/universities/:id" element={<UniversityDetails />} />
+          <Route path="education/countries" element={<Companies />} />
+          <Route path="education/companies" element={<Companies />} />
           <Route path="education/courses" element={<Courses />} />
           <Route path="education/courses/:id" element={<CourseDetails />} />
           <Route path="education/specializations" element={<Specializations />} />

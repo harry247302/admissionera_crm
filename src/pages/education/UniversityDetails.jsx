@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Globe, MapPin, Pencil } from 'lucide-react';
+import { Globe, MapPin, Pencil, ExternalLink } from 'lucide-react';
 import {
   fetchUniversityById, updateUniversity, clearCurrentUniversity,
 } from '../../redux/slices/educationSlice';
@@ -220,6 +220,49 @@ export default function UniversityDetails() {
           <EmptyState title="No approvals yet" description="Add approvals from the universities list" />
         )}
       </div>
+
+      {/* Recruiting Partners / Companies */}
+      {Array.isArray(university.companies) && university.companies.length > 0 && (
+        <div className="card p-0 overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+            <h2 className="font-semibold text-slate-900">Recruiting Partners &amp; Companies</h2>
+            <span className="text-sm text-slate-500">{university.companies.length} total</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4 p-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {university.companies.map((c, i) => (
+              <div
+                key={c.company_name || c.name || i}
+                className="flex flex-col items-center justify-center p-3 rounded-xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow text-center space-y-2"
+              >
+                {c.logo ? (
+                  <img
+                    src={c.logo}
+                    alt=""
+                    className="h-10 w-10 object-contain rounded-lg border border-slate-100 bg-slate-50 p-1"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center text-xs font-bold text-slate-500">
+                    {(c.company_name || c.name || 'CO').slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <span className="text-xs font-medium text-slate-800 line-clamp-1">{c.company_name || c.name}</span>
+                {c.website && (
+                  <a
+                    href={c.website}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] text-brand-600 hover:underline flex items-center gap-1"
+                  >
+                    <span>Visit</span>
+                    <ExternalLink className="h-2.5 w-2.5" />
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card p-0 overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
+import { ChevronDown, ChevronUp, Search, X, ExternalLink, Building2 } from 'lucide-react';
 import FormField from './FormField';
 import RichTextEditor from '../common/RichTextEditor';
 import { UNIVERSITY_TYPES, ENTITY_STATUSES, formatLabel } from '../../utils/educationConstants';
@@ -12,7 +13,6 @@ const resolveAssetUrl = (path) => {
   if (/^https?:\/\//i.test(path) || path.startsWith('blob:')) return path;
   return `${ASSET_BASE}${path.startsWith('/') ? path : `/${path}`}`;
 };
-
 
 const formatApprovalLabel = (approval) => {
   if (typeof approval === 'object' && approval !== null) {
@@ -78,6 +78,30 @@ const isApprovalSelected = (approval, list = []) => {
   return list.some((item) => isApprovalMatch(item, approval));
 };
 
+const getCompanyKey = (company) => {
+  if (company == null) return '';
+  if (typeof company === 'string') return company.trim();
+  return (
+    company.company_name ||
+    company.name ||
+    company.title ||
+    company.id ||
+    company.uuid ||
+    ''
+  ).toString().trim();
+};
+
+const isCompanyMatch = (a, b) => {
+  if (!a || !b) return false;
+  const keyA = getCompanyKey(a).toLowerCase();
+  const keyB = getCompanyKey(b).toLowerCase();
+  return keyA === keyB;
+};
+
+const isCompanySelected = (company, list = []) => {
+  return list.some((item) => isCompanyMatch(item, company));
+};
+
 export default function UniversityForm({ defaultValues, onSubmit, loading, onCancel }) {
   const [logoFile, setLogoFile] = useState(null);
   const [bannerFile, setBannerFile] = useState(null);
@@ -85,6 +109,8 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
   const [bannerPreview, setBannerPreview] = useState(resolveAssetUrl(defaultValues?.banner));
   const [logoError, setLogoError] = useState('');
   const [bannerError, setBannerError] = useState('');
+
+  // Approvals State
   const [approvals, setApprovals] = useState([]);
   const [selectedApprovals, setSelectedApprovals] = useState(() => {
     const initial = defaultValues?.approvals;
@@ -100,24 +126,59 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
     return [];
   });
   const [approvalsLoading, setApprovalsLoading] = useState(false);
-  const [approvalsError, setApprovalsError] = useState("");
+  const [approvalsError, setApprovalsError] = useState('');
 
+  // Companies State
+  const [companies, setCompanies] = useState([]);
+  const [selectedCompanies, setSelectedCompanies] = useState(() => {
+    const initial = defaultValues?.companies || defaultValues?.recruiting_companies || defaultValues?.partners;
+    if (Array.isArray(initial)) return initial;
+    if (typeof initial === 'string') {
+      try {
+        const parsed = JSON.parse(initial);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        return initial
+          .split(',')
+          .map((s) => ({ company_name: s.trim() }))
+          .filter((c) => c.company_name);
+      }
+    }
+    return [];
+  });
+  const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [companiesError, setCompaniesError] = useState('');
+  const [companySearch, setCompanySearch] = useState('');
+  const [isCompanyMenuOpen, setIsCompanyMenuOpen] = useState(false);
+  const companyMenuRef = useRef(null);
+
+  // Click outside to close company menu list
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (companyMenuRef.current && !companyMenuRef.current.contains(event.target)) {
+        setIsCompanyMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Fetch Approvals Catalogue
   useEffect(() => {
     const fetchApprovals = async () => {
       try {
         setApprovalsLoading(true);
-        setApprovalsError("");
+        setApprovalsError('');
 
         const response = await fetch(
-          "https://backend.admissionera.com/api/approvals/get-approvals"
+          'https://backend.admissionera.com/api/approvals/get-approvals'
         );
 
         if (!response.ok) {
-          throw new Error("Failed to fetch approvals");
+          throw new Error('Failed to fetch approvals');
         }
 
         const result = await response.json();
-
         const data = Array.isArray(result)
           ? result
           : result.data ?? result.approvals ?? [];
@@ -125,9 +186,7 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
         setApprovals(data);
       } catch (error) {
         setApprovalsError(
-          error instanceof Error
-            ? error.message
-            : "Something went wrong"
+          error instanceof Error ? error.message : 'Something went wrong'
         );
       } finally {
         setApprovalsLoading(false);
@@ -135,6 +194,39 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
     };
 
     fetchApprovals();
+  }, []);
+
+  // Fetch Companies Catalogue from https://backend.admissionera.com/api/companies/get
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      try {
+        setCompaniesLoading(true);
+        setCompaniesError('');
+
+        const response = await fetch(
+          'https://backend.admissionera.com/api/companies/get'
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch companies');
+        }
+
+        const result = await response.json();
+        const data = Array.isArray(result)
+          ? result
+          : result.data ?? result.companies ?? [];
+
+        setCompanies(data);
+      } catch (error) {
+        setCompaniesError(
+          error instanceof Error ? error.message : 'Failed to fetch companies'
+        );
+      } finally {
+        setCompaniesLoading(false);
+      }
+    };
+
+    fetchCompanies();
   }, []);
 
   // Pre-load existing approvals when editing a university if not already provided
@@ -178,6 +270,19 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
     });
   }, [approvals]);
 
+  // Once catalogue companies are fetched, align selectedCompanies
+  useEffect(() => {
+    if (!companies.length) return;
+    setSelectedCompanies((prev) => {
+      if (!prev.length) return prev;
+      const matched = companies.filter((item) =>
+        prev.some((p) => isCompanyMatch(p, item))
+      );
+      const unmatched = prev.filter((p) => !companies.some((c) => isCompanyMatch(c, p)));
+      return [...matched, ...unmatched];
+    });
+  }, [companies]);
+
   const handleToggleApproval = (approval) => {
     setSelectedApprovals((prev) => {
       const exists = prev.some((item) => isApprovalMatch(item, approval));
@@ -187,6 +292,22 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
         return [...prev, approval];
       }
     });
+  };
+
+  const handleToggleCompany = (company) => {
+    setSelectedCompanies((prev) => {
+      const exists = prev.some((item) => isCompanyMatch(item, company));
+      if (exists) {
+        return prev.filter((item) => !isCompanyMatch(item, company));
+      } else {
+        return [...prev, company];
+      }
+    });
+  };
+
+  const handleRemoveCompany = (company, e) => {
+    e?.stopPropagation();
+    setSelectedCompanies((prev) => prev.filter((item) => !isCompanyMatch(item, company)));
   };
 
   const { register, handleSubmit, control, formState: { errors } } = useForm({
@@ -246,10 +367,17 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
       short_name: data.code || data.short_name,
       logo: logoFile || undefined,
       approvals: selectedApprovals,
+      companies: selectedCompanies,
       banner: bannerFile || undefined,
       existingLogo: defaultValues?.logo || '',
       existingBanner: defaultValues?.banner || '',
     });
+  });
+
+  const filteredCompanies = companies.filter((c) => {
+    const name = getCompanyKey(c).toLowerCase();
+    const query = companySearch.trim().toLowerCase();
+    return !query || name.includes(query);
   });
 
   return (
@@ -338,6 +466,7 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
         </FormField>
       </div>
 
+      {/* Approvals Section */}
       <FormField
         label={`Approvals (${selectedApprovals.length} selected)`}
         error={approvalsError}
@@ -421,6 +550,209 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
             No approvals found.
           </p>
         )}
+      </FormField>
+
+      {/* Recruiting Companies / Partners Section with Searchable & Selectable Menulist */}
+      <FormField
+        label={`Recruiting Companies (${selectedCompanies.length} selected)`}
+        error={companiesError}
+        hint="Search and select companies that recruit from this university."
+      >
+        <div ref={companyMenuRef} className="relative space-y-2">
+          {/* Trigger Box with Selected Chips & Toggle */}
+          <div
+            onClick={() => setIsCompanyMenuOpen((prev) => !prev)}
+            className={`input min-h-[46px] cursor-pointer flex flex-wrap items-center justify-between gap-2 bg-white transition-all ${
+              isCompanyMenuOpen ? 'border-brand-500 ring-2 ring-brand-100' : ''
+            }`}
+          >
+            <div className="flex flex-wrap items-center gap-1.5 flex-1 py-1">
+              {selectedCompanies.length === 0 ? (
+                <span className="text-slate-400 text-sm flex items-center gap-2 select-none">
+                  <Building2 className="h-4 w-4 text-slate-300" />
+                  Click to search &amp; select recruiting companies...
+                </span>
+              ) : (
+                selectedCompanies.map((comp) => {
+                  const name = comp.company_name || comp.name || getCompanyKey(comp);
+                  return (
+                    <span
+                      key={getCompanyKey(comp)}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-brand-50 border border-brand-200 px-2.5 py-1 text-xs font-medium text-brand-900 shadow-sm"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {comp.logo ? (
+                        <img
+                          src={comp.logo}
+                          alt=""
+                          className="h-4 w-4 object-contain rounded-full bg-white p-0.5 border border-slate-200"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      ) : (
+                        <Building2 className="h-3 w-3 text-brand-600" />
+                      )}
+                      <span>{name}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleRemoveCompany(comp, e)}
+                        className="text-brand-400 hover:text-red-500 p-0.5 transition-colors"
+                        title={`Remove ${name}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {selectedCompanies.length > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedCompanies([]);
+                  }}
+                  className="text-xs text-slate-400 hover:text-red-600 font-medium transition-colors px-1"
+                >
+                  Clear all
+                </button>
+              )}
+              {isCompanyMenuOpen ? (
+                <ChevronUp className="h-4 w-4 text-slate-400" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-slate-400" />
+              )}
+            </div>
+          </div>
+
+          {/* Searchable Dropdown Menulist */}
+          {isCompanyMenuOpen && (
+            <div className="absolute z-30 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-xl ring-1 ring-black/5">
+              {/* Search Toolbar inside Menu */}
+              <div className="p-3 border-b border-slate-100 bg-slate-50/80 rounded-t-xl space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={companySearch}
+                    onChange={(e) => setCompanySearch(e.target.value)}
+                    placeholder="Search companies by name (e.g. TCS, Infosys, Wipro, Google)..."
+                    className="input pl-9 pr-8 text-xs !py-2 bg-white"
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  {companySearch && (
+                    <button
+                      type="button"
+                      onClick={() => setCompanySearch('')}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+                  <span>
+                    Showing {filteredCompanies.length} of {companies.length} companies
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCompanies((prev) => {
+                          const toAdd = filteredCompanies.filter(
+                            (item) => !prev.some((p) => isCompanyMatch(p, item))
+                          );
+                          return [...prev, ...toAdd];
+                        });
+                      }}
+                      className="font-medium text-brand-600 hover:text-brand-700"
+                    >
+                      Select Filtered
+                    </button>
+                    <span>•</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCompanies([])}
+                      className="font-medium text-slate-500 hover:text-slate-700"
+                    >
+                      Deselect All
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Scrollable Company List */}
+              <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 p-1">
+                {companiesLoading ? (
+                  <div className="p-5 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+                    Loading companies catalogue...
+                  </div>
+                ) : filteredCompanies.length === 0 ? (
+                  <div className="p-5 text-center text-xs text-slate-500">
+                    No companies found matching &quot;{companySearch}&quot;
+                  </div>
+                ) : (
+                  filteredCompanies.map((company) => {
+                    const isSelected = isCompanySelected(company, selectedCompanies);
+                    const name = company.company_name || company.name || getCompanyKey(company);
+
+                    return (
+                      <div
+                        key={getCompanyKey(company)}
+                        onClick={() => handleToggleCompany(company)}
+                        className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+                          isSelected
+                            ? 'bg-brand-50 text-brand-900 font-medium'
+                            : 'hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}}
+                            className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                          />
+                          {company.logo ? (
+                            <img
+                              src={company.logo}
+                              alt=""
+                              className="h-6 w-6 rounded border border-slate-200 bg-white object-contain p-0.5 shrink-0"
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div className="h-6 w-6 rounded border border-slate-200 bg-slate-100 flex items-center justify-center text-[10px] text-slate-500 font-bold shrink-0">
+                              {name.slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                          <span className="text-xs truncate">{name}</span>
+                        </div>
+
+                        {company.website && (
+                          <a
+                            href={company.website}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-slate-400 hover:text-brand-600 p-1 transition-colors"
+                            title={company.website}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </FormField>
 
       <FormField label="Description" hint="Supports headings, links, colors, highlights, and text formatting">

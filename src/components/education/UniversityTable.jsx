@@ -12,6 +12,7 @@ export default function UniversityTable({
   onAssignSpecializations,
   onAddApprovals,
   onAddFaqs,
+  onAddCompanies,
 }) {
   return (
     <>
@@ -22,6 +23,7 @@ export default function UniversityTable({
               <th className="px-4 py-3">University</th>
               <th className="px-4 py-3">Approvals</th>
               <th className="px-4 py-3">FAQs</th>
+              <th className="px-4 py-3">Companies</th>
               <th className="px-4 py-3">Code</th>
               <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3">Location</th>
@@ -55,6 +57,15 @@ export default function UniversityTable({
                     onClick={() => onAddFaqs?.(u)}
                   >
                     Add FAQs
+                  </button>
+                </td>
+                 <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-100"
+                    onClick={() => onAddCompanies?.(u)}
+                  >
+                    Add Companies
                   </button>
                 </td>
                 <td className="px-4 py-3 font-mono text-xs">{u.code}</td>
@@ -97,12 +108,20 @@ export default function UniversityTable({
             >
               Add Approvals
             </button>
+            
             <button
               type="button"
               className="w-full rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700 hover:bg-brand-100"
               onClick={() => onAddFaqs?.(u)}
             >
               Add FAQs
+            </button>
+            <button
+              type="button"
+              className="w-full rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700 hover:bg-brand-100"
+              onClick={() => onAddCompanies?.(u)}
+            >
+              Add Companies
             </button>
             {onAssignSpecializations && (
               <button

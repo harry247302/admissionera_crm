@@ -11,6 +11,7 @@ import UniversityTable from '../../components/education/UniversityTable';
 import UniversityForm from '../../components/education/UniversityForm';
 import UniversityApprovalForm from '../../components/education/UniversityApprovalForm';
 import UniversityFaqForm from '../../components/education/UniversityFaqForm';
+import UniversityAssignCompaniesModal from '../../components/education/UniversityAssignCompaniesModal';
 import Breadcrumb from '../../components/education/Breadcrumb';
 import Pagination from '../../components/education/Pagination';
 import Modal, { ConfirmDialog } from '../../components/common/Modal';
@@ -36,6 +37,7 @@ export default function Universities() {
   const [approvalSaving, setApprovalSaving] = useState(false);
   const [faqTarget, setFaqTarget] = useState(null);
   const [faqSaving, setFaqSaving] = useState(false);
+  const [companyTarget, setCompanyTarget] = useState(null);
 
   const filters = { search, status, type };
 
@@ -89,6 +91,7 @@ export default function Universities() {
         admission_process: data.admission_process ?? '',
         career: data.career ?? '',
         approvals: Array.isArray(data.approvals) ? data.approvals : (data.approvals ? [data.approvals] : []),
+        companies: Array.isArray(data.companies) ? data.companies : (data.companies ? [data.companies] : []),
       };
 
       const result = await dispatch(updateUniversity({
@@ -204,6 +207,7 @@ export default function Universities() {
             onDelete={setDeleteTarget}
             onAddApprovals={setApprovalTarget}
             onAddFaqs={setFaqTarget}
+            onAddCompanies={setCompanyTarget}
             // onAssignSpecializations={setAssignTarget}
           />
           <Pagination
@@ -266,6 +270,15 @@ export default function Universities() {
           dispatch(fetchUniversities({ ...filters, page, limit: PAGE_SIZE, sortBy: 'name' }));
         }}
       /> */}
+
+      <UniversityAssignCompaniesModal
+        open={!!companyTarget}
+        university={companyTarget}
+        onClose={() => setCompanyTarget(null)}
+        onAssigned={() => {
+          dispatch(fetchUniversities({ ...filters, page, limit: PAGE_SIZE, sortBy: 'name' }));
+        }}
+      />
 
       <ConfirmDialog
         open={!!deleteTarget}

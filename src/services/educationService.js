@@ -685,6 +685,19 @@ const mapUniversity = (row = {}) => {
     return [];
   };
 
+  const parseCompanies = (value) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        return value.split(',').map((s) => ({ company_name: s.trim() })).filter((c) => c.company_name);
+      }
+    }
+    return [];
+  };
+
   return {
     id: row.uuid || row.id,
     uuid: row.uuid || row.id,
@@ -704,6 +717,7 @@ const mapUniversity = (row = {}) => {
     admission_process: fromTextArray(row.admission_process || row.admissionProcess),
     career: fromTextArray(row.career),
     approvals: parseApprovals(row.approvals),
+    companies: parseCompanies(row.companies || row.recruiting_companies || row.partners),
     status: row.status || (row.is_active === false ? 'INACTIVE' : 'ACTIVE'),
     createdAt: row.createdAt || row.created_at,
     updatedAt: row.updatedAt || row.updated_at,
@@ -734,6 +748,14 @@ const buildUniversityFormData = (data = {}) => {
       formData.append('approvals', JSON.stringify(data.approvals));
     } else {
       formData.append('approvals', data.approvals);
+    }
+  }
+
+  if (data.companies != null) {
+    if (Array.isArray(data.companies)) {
+      formData.append('companies', JSON.stringify(data.companies));
+    } else {
+      formData.append('companies', data.companies);
     }
   }
 
@@ -1647,6 +1669,27 @@ export const courseFaqService = {
       is_active: data.is_active ?? true,
     });
     return { data: res.data?.data || res.data };
+  },
+};
+
+export const universityCompanyService = {
+  /** GET https://backend.admissionera.com/api/companies/get */
+  getCompanies: async () => {
+    const res = await api.get('/companies/get');
+    // Handle both { data: [...] } and direct array responses
+    const list = res.data?.data || res.data?.companies || res.data || [];
+    return Array.isArray(list) ? list : [];
+  },
+
+  /** POST https://backend.admissionera.com/api/companies/assign-companies-to-universities
+   *  Body: { university_id, company_id }
+   */
+  assignToUniversity: async ({ university_id, company_ids }) => {
+    const res = await api.post('/companies/assign-companies-to-universities', {
+      university_id,
+      company_ids,
+    });
+    return res.data;
   },
 };
 

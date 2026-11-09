@@ -8,6 +8,7 @@ import counselorReducer from './slices/counselorSlice';
 import applicationReducer from './slices/applicationSlice';
 import educationReducer from './slices/educationSlice';
 import blogReducer from './slices/blogSlice';
+import companyReducer from './slices/companySlice';
 
 const store = configureStore({
   reducer: {
@@ -20,6 +21,7 @@ const store = configureStore({
     applications: applicationReducer,
     education: educationReducer,
     blogs: blogReducer,
+    companies: companyReducer,
   },
 });
 
