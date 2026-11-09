@@ -10,8 +10,8 @@ import {
   AlertCircle,
   Table as TableIcon,
   AlignLeft,
-  FileText,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import Modal from '../common/Modal';
 import WizardStepIndicator from '../education/courseWizard/WizardStepIndicator';
 import CourseContentTablesEditor, {
@@ -20,6 +20,7 @@ import CourseContentTablesEditor, {
   mapApiTablesToEditor,
   mapApiParagraphsToEditor,
 } from '../education/courseWizard/CourseContentTablesEditor';
+import { blogService } from '../../services/blogService';
 
 export const slugify = (text = '') => {
   return text
@@ -60,6 +61,10 @@ export default function BlogFormModal({
 }) {
   const isEditing = Boolean(initialData?.uuid || initialData?.id);
   const [step, setStep] = useState(0);
+  const [persistedBlogId, setPersistedBlogId] = useState(
+    initialData?.uuid || initialData?.id || null
+  );
+  const [persistingBlog, setPersistingBlog] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -99,6 +104,7 @@ export default function BlogFormModal({
   useEffect(() => {
     if (open) {
       setStep(0);
+      setPersistedBlogId(initialData?.uuid || initialData?.id || null);
       if (initialData) {
         const isCustomCat = initialData.category && !CATEGORIES.includes(initialData.category);
         setFormData({
@@ -151,6 +157,26 @@ export default function BlogFormModal({
       setImageError(false);
       setTagInput('');
       setKeywordInput('');
+
+      const blogId = initialData?.uuid || initialData?.id;
+      if (blogId) {
+        (async () => {
+          try {
+            const [tables, paragraphs] = await Promise.all([
+              blogService.getContentTables(blogId),
+              blogService.getParagraphs(blogId),
+            ]);
+            if (tables.length) {
+              setContentTables(mapApiTablesToEditor(tables));
+            }
+            if (paragraphs.length) {
+              setContentParagraphs(mapApiParagraphsToEditor(paragraphs));
+            }
+          } catch (err) {
+            console.error('Failed to load blog content:', err);
+          }
+        })();
+      }
     }
   }, [initialData, open]);
 
@@ -245,35 +271,13 @@ export default function BlogFormModal({
     return true;
   };
 
-  const handleStepClick = (targetIndex) => {
-    if (targetIndex > 0 && !validateStep0()) {
-      return;
-    }
-    setStep(targetIndex);
-  };
-
-  const goNext = () => {
-    if (step === 0 && !validateStep0()) {
-      return;
-    }
-    setStep((s) => Math.min(s + 1, BLOG_FORM_STEPS.length - 1));
-  };
-
-  const goBack = () => setStep((s) => Math.max(s - 1, 0));
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!validateStep0()) {
-      setStep(0);
-      return;
-    }
-
+  const buildBlogFields = () => {
     const finalCategory =
       formData.category === 'Custom'
         ? formData.customCategory.trim() || 'General'
         : formData.category;
 
-    const payload = {
+    return {
       title: formData.title.trim(),
       slug: formData.slug.trim(),
       excerpt: formData.excerpt.trim() || null,
@@ -285,15 +289,101 @@ export default function BlogFormModal({
       meta_title: formData.meta_title.trim() || null,
       meta_description: formData.meta_description.trim() || null,
       meta_keywords: formData.meta_keywords || [],
-      published_at: formData.published_at ? new Date(formData.published_at).toISOString() : null,
-      contentTables,
-      contentParagraphs,
+      published_at: formData.published_at
+        ? new Date(formData.published_at).toISOString()
+        : null,
+    };
+  };
+
+  const persistBlogIfNeeded = async () => {
+    if (persistedBlogId) return persistedBlogId;
+
+    const existingId = initialData?.uuid || initialData?.id;
+    if (existingId) {
+      setPersistedBlogId(existingId);
+      return existingId;
+    }
+
+    const res = await blogService.create(buildBlogFields());
+    const blog = res?.data || res;
+    const blogId = blog?.uuid || blog?.id;
+    if (!blogId) {
+      throw new Error('Blog was created but no id was returned');
+    }
+    setPersistedBlogId(blogId);
+    return blogId;
+  };
+
+  const handleStepClick = async (targetIndex) => {
+    if (targetIndex > 0 && !validateStep0()) {
+      return;
+    }
+    if (targetIndex > 0) {
+      try {
+        setPersistingBlog(true);
+        await persistBlogIfNeeded();
+      } catch (err) {
+        toast.error(err?.response?.data?.message || err.message || 'Failed to save blog');
+        return;
+      } finally {
+        setPersistingBlog(false);
+      }
+    }
+    setStep(targetIndex);
+  };
+
+  const goNext = async () => {
+    if (step === 0 && !validateStep0()) {
+      return;
+    }
+    if (step === 0) {
+      try {
+        setPersistingBlog(true);
+        await persistBlogIfNeeded();
+      } catch (err) {
+        toast.error(err?.response?.data?.message || err.message || 'Failed to save blog');
+        return;
+      } finally {
+        setPersistingBlog(false);
+      }
+    }
+    setStep((s) => Math.min(s + 1, BLOG_FORM_STEPS.length - 1));
+  };
+
+  const goBack = () => setStep((s) => Math.max(s - 1, 0));
+
+  const handleSubmit = async (e) => {
+    e?.preventDefault?.();
+    if (!validateStep0()) {
+      setStep(0);
+      return;
+    }
+
+    let blogId = persistedBlogId;
+    try {
+      setPersistingBlog(true);
+      blogId = await persistBlogIfNeeded();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message || 'Failed to save blog');
+      setPersistingBlog(false);
+      return;
+    }
+    setPersistingBlog(false);
+
+    const payload = {
+      ...buildBlogFields(),
+      uuid: blogId,
+      counsellor_id: formData.author_id.trim() || null,
+      contentTables: contentTables.filter((table) => !table.persisted),
+      contentParagraphs: contentParagraphs.filter((paragraph) => !paragraph.persisted),
     };
 
-    onSubmit(payload);
+    await onSubmit(payload);
   };
 
   const isLastStep = step === BLOG_FORM_STEPS.length - 1;
+  const blogId = persistedBlogId || initialData?.uuid || initialData?.id || null;
+  const isBusy = saving || persistingBlog;
 
   return (
     <Modal
@@ -671,17 +761,21 @@ export default function BlogFormModal({
               <div className="flex items-center gap-2">
                 <TableIcon className="h-4 w-4 text-blue-600 shrink-0" />
                 <span>
-                  Add custom structured tables (e.g. course fees, eligibility criteria, admission schedules).
-                  Rows will be created via <code>/api/blogs/create-table</code> and <code>/api/blogs/create-rows</code>.
+                  Add structured tables (fees, eligibility, schedules). Each table is saved with{' '}
+                  <code>/api/blogs/create-table</code> and rows with <code>/api/blogs/create-rows</code>.
                 </span>
               </div>
             </div>
-             
+
+            {!blogId ? (
+              <p className="text-xs text-amber-700">Saving blog details first so tables can be stored.</p>
+            ) : null}
+
             <CourseContentTablesEditor
               mode="tables"
               value={contentTables}
               onChange={setContentTables}
-              blogId={initialData?.uuid || initialData?.id}
+              blogId={blogId}
             />
           </div>
         )}
@@ -693,8 +787,8 @@ export default function BlogFormModal({
               <div className="flex items-center gap-2">
                 <AlignLeft className="h-4 w-4 text-indigo-600 shrink-0" />
                 <span>
-                  Add narrative paragraphs, deep dives, or section texts.
-                  Paragraphs will be saved via <code>/api/blogs/add-paragraph</code>.
+                  Add narrative paragraphs or section text. Saved with{' '}
+                  <code>/api/blogs/add-paragraph</code>.
                 </span>
               </div>
             </div>
@@ -703,7 +797,7 @@ export default function BlogFormModal({
               mode="paragraphs"
               paragraphs={contentParagraphs}
               onParagraphsChange={setContentParagraphs}
-              blogId={initialData?.uuid || initialData?.id}
+              blogId={blogId}
             />
           </div>
         )}
@@ -716,7 +810,7 @@ export default function BlogFormModal({
                 type="button"
                 onClick={onClose}
                 className="btn-secondary"
-                disabled={saving}
+                disabled={isBusy}
               >
                 Cancel
               </button>
@@ -725,7 +819,7 @@ export default function BlogFormModal({
                 type="button"
                 onClick={goBack}
                 className="btn-secondary"
-                disabled={saving}
+                disabled={isBusy}
               >
                 Back
               </button>
@@ -738,17 +832,18 @@ export default function BlogFormModal({
                 type="button"
                 onClick={goNext}
                 className="btn-primary min-w-[100px]"
+                disabled={isBusy}
               >
-                Next
+                {persistingBlog ? 'Saving…' : 'Next'}
               </button>
             ) : (
               <button
                 type="button"
                 onClick={handleSubmit}
                 className="btn-primary min-w-[120px]"
-                disabled={saving}
+                disabled={isBusy}
               >
-                {saving ? (
+                {isBusy ? (
                   <span className="flex items-center gap-2">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                     Saving...

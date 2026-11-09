@@ -179,8 +179,9 @@ export default function Admissions() {
 
   const handleFormSubmit = async (payload) => {
     try {
-      if (editingBlog?.uuid) {
-        const res = await dispatch(updateBlog({ uuid: editingBlog.uuid, data: payload })).unwrap();
+      const blogUuid = editingBlog?.uuid || payload?.uuid;
+      if (blogUuid) {
+        const res = await dispatch(updateBlog({ uuid: blogUuid, data: payload })).unwrap();
         if (res?._contentWarning) {
           toast.success(
             `Blog updated, but some content items could not be saved: ${res._contentWarning}`,

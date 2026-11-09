@@ -3,6 +3,15 @@ import { Plus, Trash2, CloudUpload } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { counselorService } from '../../../services/crmService';
 import { blogService } from '../../../services/blogService';
+import RichTextEditor from '../../common/RichTextEditor';
+
+const hasParagraphText = (html = '') =>
+  String(html)
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .length > 0;
 
 const newRow = (columns = []) => ({
   clientId: crypto.randomUUID(),
@@ -313,7 +322,7 @@ export default function CourseContentTablesEditor({
   // - POST https://backend.admissionera.com/api/blogs/add-paragraph
   const handleRegisterParagraph = async (paragraph, index) => {
     if (!blogId) return;
-    if (!paragraph.content?.trim()) {
+    if (!hasParagraphText(paragraph.content)) {
       toast.error('Paragraph content is required');
       return;
     }
@@ -566,11 +575,11 @@ export default function CourseContentTablesEditor({
               </div>
               <div>
                 <label className="label">Content *</label>
-                <textarea
-                  className="input min-h-[120px]"
+                <RichTextEditor
+                  value={paragraph.content || ''}
+                  onChange={(html) => updateParagraph(paragraph.clientId, { content: html })}
                   placeholder="Write paragraph content..."
-                  value={paragraph.content}
-                  onChange={(e) => updateParagraph(paragraph.clientId, { content: e.target.value })}
+                  minHeight={180}
                 />
               </div>
             </div>

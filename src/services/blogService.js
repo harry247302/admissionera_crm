@@ -26,11 +26,12 @@ export const blogService = {
   },
 
   // POST https://backend.admissionera.com/api/blogs/create-table
-  createTable: async ({ blog_id, title, sort_order = 0 }) => {
+  createTable: async ({ blog_id, title, sort_order = 0, counsellor_id = null }) => {
     const res = await api.post('/blogs/create-table', {
       blog_id,
       title: title || null,
       sort_order: Number(sort_order) || 0,
+      counsellor_id: counsellor_id || null,
     });
     return res.data;
   },
@@ -47,12 +48,13 @@ export const blogService = {
   },
 
   // POST https://backend.admissionera.com/api/blogs/add-paragraph
-  addParagraph: async ({ blog_id, title, content, sort_order = 0 }) => {
+  addParagraph: async ({ blog_id, title, content, sort_order = 0, counsellor_id = null }) => {
     const res = await api.post('/blogs/add-paragraph', {
       blog_id,
       title: title || null,
       content,
       sort_order: Number(sort_order) || 0,
+      counsellor_id: counsellor_id || null,
     });
     return res.data;
   },
@@ -60,19 +62,14 @@ export const blogService = {
   // GET https://backend.admissionera.com/api/blogs/get-content-tables
   getContentTables: async (blogId) => {
     try {
-      const res = await api.get('/blogs/get-content-tables', {
-        params: {
-          blog_id: blogId,
-          course_id: blogId,
-          id: blogId,
-        },
-      });
+      const res = await api.get(`/blogs/get-content-tables/${blogId}`);
       const data = res.data?.data ?? res.data?.tables ?? res.data;
       return Array.isArray(data) ? data : [];
     } catch (err) {
-      // Fallback in case backend route is /blogs/get-content-tables/:id
       try {
-        const fallbackRes = await api.get(`/blogs/get-content-tables/${blogId}`);
+        const fallbackRes = await api.get('/blogs/get-content-tables', {
+          params: { blog_id: blogId },
+        });
         const data = fallbackRes.data?.data ?? fallbackRes.data?.tables ?? fallbackRes.data;
         return Array.isArray(data) ? data : [];
       } catch {
@@ -90,7 +87,7 @@ export const blogService = {
     } catch (err) {
       // Fallback in case route without leading slash is mounted as /blogsfetch-paragraph/:id
       try {
-        const fallbackRes = await api.get(`/blogsfetch-paragraph/${blogId}`);
+        const fallbackRes = await api.get('/blogs/fetch-paragraph/' + blogId);
         const data = fallbackRes.data?.data ?? fallbackRes.data?.paragraphs ?? fallbackRes.data;
         return Array.isArray(data) ? data : [];
       } catch {
@@ -102,11 +99,12 @@ export const blogService = {
   /**
    * Save content tables and their nested rows for a blog, matching the course wizard architecture.
    */
-  saveContentTables: async (blogId, tables = []) => {
+  saveContentTables: async (blogId, tables = [], { counsellor_id } = {}) => {
     const hasText = (val) => String(val ?? '').trim().length > 0;
     const results = [];
 
     for (const [tableIndex, table] of tables.entries()) {
+      if (table.persisted) continue;
       const rows = (table.rows || []).filter((row) =>
         Object.values(row.cells || {}).some(hasText)
       );
@@ -118,6 +116,7 @@ export const blogService = {
         sort_order: Number.isFinite(Number(table.sortOrder))
           ? Number(table.sortOrder)
           : tableIndex,
+        counsellor_id: counsellor_id || null,
       });
 
       const tableData = createdTableRes.data?.data || createdTableRes.data;
@@ -159,9 +158,10 @@ export const blogService = {
   /**
    * Save content paragraphs for a blog, matching the course wizard architecture.
    */
-  saveContentParagraphs: async (blogId, paragraphs = []) => {
+  saveContentParagraphs: async (blogId, paragraphs = [], { counsellor_id } = {}) => {
     const results = [];
     for (const [index, paragraph] of paragraphs.entries()) {
+      if (paragraph.persisted) continue;
       const content = String(paragraph.content || '').trim();
       if (!content) continue;
 
@@ -172,6 +172,7 @@ export const blogService = {
         sort_order: Number.isFinite(Number(paragraph.sortOrder))
           ? Number(paragraph.sortOrder)
           : index,
+        counsellor_id: counsellor_id || null,
       });
       results.push(res.data?.data || res.data);
     }
