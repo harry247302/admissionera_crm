@@ -19,6 +19,14 @@ export const SPECIALIZATION_FORM_STEPS = [
   { key: 'paragraphs', label: 'Paragraphs' },
 ];
 
+export const UNIVERSITY_FORM_STEPS = [
+  { key: 'details', label: 'University Details' },
+  { key: 'tables', label: 'Content Tables' },
+  { key: 'paragraphs', label: 'Paragraphs' },
+];
+
+export const UNIVERSITY_STEP1_FIELDS = ['name', 'code', 'type'];
+
 export const SPECIALIZATION_STEP1_FIELDS = ['name', 'slug'];
 
 export const slugify = (value) =>

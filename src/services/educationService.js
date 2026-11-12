@@ -1273,6 +1273,141 @@ export const specializationContentTableService = {
   saveParagraphs: saveSpecializationContentParagraphs,
 };
 
+const unwrapUniversityContentList = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.tables)) return payload.tables;
+  if (Array.isArray(payload?.paragraphs)) return payload.paragraphs;
+  if (Array.isArray(payload?.university_tables)) return payload.university_tables;
+  if (Array.isArray(payload?.data?.tables)) return payload.data.tables;
+  if (Array.isArray(payload?.data?.paragraphs)) return payload.data.paragraphs;
+  if (Array.isArray(payload?.data?.university_tables)) return payload.data.university_tables;
+  return [];
+};
+
+const extractUniversityTableId = (payload) => {
+  const visit = (node, depth = 0) => {
+    if (!node || typeof node !== 'object' || depth > 5) return null;
+    const direct = node.id || node.uuid || node.table_id || node.university_table_id;
+    if (direct != null && direct !== '' && typeof direct !== 'object') return direct;
+    for (const key of ['data', 'table', 'university_table', 'result', 'record']) {
+      const found = visit(node[key], depth + 1);
+      if (found) return found;
+    }
+    return null;
+  };
+  return visit(payload);
+};
+
+const saveUniversityContentTables = async (universityId, tables = []) => {
+  for (const [tableIndex, table] of tables.entries()) {
+    const hasContent = table.rows?.some((row) =>
+      Object.values(row.cells || {}).some((cell) => String(cell || '').trim())
+    );
+    if (!hasContent && !String(table.title || '').trim()) continue;
+
+    let tableId = table.persisted
+      ? (table.id || table.uuid || table.clientId || null)
+      : null;
+
+    if (!table.persisted) {
+      const createdTable = await api.post('/academic/university-table', {
+        university_uuid: universityId,
+        university_id: universityId,
+        title: table.title || `Table ${tableIndex + 1}`,
+        sort_order: Number.isFinite(Number(table.sortOrder))
+          ? Number(table.sortOrder)
+          : tableIndex,
+      });
+      tableId = extractUniversityTableId(createdTable.data);
+    }
+
+    if (!tableId) {
+      throw new Error('University table id is required to save rows and columns');
+    }
+
+    for (const [rowIndex, row] of (table.rows || []).entries()) {
+      if (row.persisted) continue;
+
+      const content = {};
+      (table.columns || []).forEach((col) => {
+        content[col] = row.cells?.[col] ?? '';
+      });
+
+      const label =
+        content[table.columns?.[0]]?.trim()
+        || Object.values(content).find((v) => String(v).trim())
+        || `Row ${rowIndex + 1}`;
+
+      await api.post('/academic/course-table-rows', {
+        table_id: tableId,
+        university_uuid: universityId,
+        university_id: universityId,
+        label: String(label),
+        columns: table.columns || [],
+        content,
+        sort_order: Number.isFinite(Number(row.sortOrder))
+          ? Number(row.sortOrder)
+          : rowIndex,
+      });
+    }
+  }
+};
+
+const saveUniversityContentParagraphs = async (universityId, paragraphs = []) => {
+  for (const [index, paragraph] of paragraphs.entries()) {
+    if (paragraph.persisted) continue;
+
+    const content = String(paragraph.content || '').trim();
+    if (!content) continue;
+
+    await api.post('/academic/university-paragraphs', {
+      university_uuid: universityId,
+      university_id: universityId,
+      title: paragraph.title || `Paragraph ${index + 1}`,
+      content,
+      sort_order: Number.isFinite(Number(paragraph.sortOrder))
+        ? Number(paragraph.sortOrder)
+        : index,
+    });
+  }
+};
+
+export const universityContentTableService = {
+  getByUniversity: async (universityId) => {
+    const res = await api.get(`/academic/university-tables/${universityId}`);
+    const tables = unwrapUniversityContentList(res.data).map((table) => ({
+      ...table,
+      rows: table.rows || table.table_rows || table.university_table_rows || [],
+    }));
+    return { data: tables };
+  },
+  getParagraphsByUniversity: async (universityId) => {
+    try {
+      const res = await api.get(`/academic/course-table-paragraphs/${universityId}`);
+      const rows = unwrapUniversityContentList(res.data);
+      if (rows.length) return { data: rows };
+    } catch (err) {
+      if (err?.response?.status && err.response.status !== 404) {
+        throw err;
+      }
+    }
+
+    try {
+      const res = await api.get(`/academic/university-paragraphs/${universityId}`);
+      return { data: unwrapUniversityContentList(res.data) };
+    } catch (err) {
+      if (err?.response?.status === 404) return { data: [] };
+      throw err;
+    }
+  },
+  createTable: (data) => api.post('/academic/university-table', data),
+  createRow: (data) => api.post('/academic/course-table-rows', data),
+  createParagraph: (data) => api.post('/academic/university-paragraphs', data),
+  saveMany: saveUniversityContentTables,
+  saveParagraphs: saveUniversityContentParagraphs,
+};
+
 /** Always uses live academic APIs (not mock) */
 export const academicSpecializationService = {
   getCatalog: liveSpecializationService.getCatalog,

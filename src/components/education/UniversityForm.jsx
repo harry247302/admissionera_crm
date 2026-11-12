@@ -1,8 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { ChevronDown, ChevronUp, Search, X, ExternalLink, Building2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import FormField from './FormField';
 import RichTextEditor from '../common/RichTextEditor';
+import Step2ContentTables from './courseWizard/Step2ContentTables';
+import Step3ContentParagraphs from './courseWizard/Step3ContentParagraphs';
+import WizardStepIndicator from './courseWizard/WizardStepIndicator';
+import {
+  UNIVERSITY_FORM_STEPS,
+  UNIVERSITY_STEP1_FIELDS,
+} from './courseWizard/courseWizardUtils';
+import {
+  emptyContentParagraphs,
+  emptyContentTables,
+  mapApiParagraphsToEditor,
+  mapApiTablesToEditor,
+} from './courseWizard/CourseContentTablesEditor';
+import { universityContentTableService } from '../../services/educationService';
 import { UNIVERSITY_TYPES, ENTITY_STATUSES, formatLabel } from '../../utils/educationConstants';
 
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
@@ -103,6 +118,9 @@ const isCompanySelected = (company, list = []) => {
 };
 
 export default function UniversityForm({ defaultValues, onSubmit, loading, onCancel }) {
+  const isEditing = Boolean(defaultValues?.uuid || defaultValues?.id);
+  const universityId = defaultValues?.uuid || defaultValues?.id;
+  const [step, setStep] = useState(0);
   const [logoFile, setLogoFile] = useState(null);
   const [bannerFile, setBannerFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(resolveAssetUrl(defaultValues?.logo));
@@ -151,6 +169,16 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
   const [companySearch, setCompanySearch] = useState('');
   const [isCompanyMenuOpen, setIsCompanyMenuOpen] = useState(false);
   const companyMenuRef = useRef(null);
+  const [contentTables, setContentTables] = useState(() => (
+    defaultValues?.contentTables?.length
+      ? mapApiTablesToEditor(defaultValues.contentTables)
+      : emptyContentTables()
+  ));
+  const [contentParagraphs, setContentParagraphs] = useState(() => (
+    defaultValues?.contentParagraphs?.length
+      ? mapApiParagraphsToEditor(defaultValues.contentParagraphs)
+      : emptyContentParagraphs()
+  ));
 
   // Click outside to close company menu list
   useEffect(() => {
@@ -310,7 +338,7 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
     setSelectedCompanies((prev) => prev.filter((item) => !isCompanyMatch(item, company)));
   };
 
-  const { register, handleSubmit, control, formState: { errors } } = useForm({
+  const { register, handleSubmit, control, trigger, formState: { errors } } = useForm({
     defaultValues: {
       status: 'ACTIVE',
       type: '',
@@ -361,6 +389,45 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
     setFile(file);
   };
 
+  useEffect(() => {
+    if (!universityId) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!defaultValues?.contentTables?.length) {
+          const res = await universityContentTableService.getByUniversity(universityId);
+          if (!cancelled && res.data?.length) {
+            setContentTables(mapApiTablesToEditor(res.data));
+          }
+        }
+        if (!defaultValues?.contentParagraphs?.length) {
+          const res = await universityContentTableService.getParagraphsByUniversity(universityId);
+          if (!cancelled && res.data?.length) {
+            setContentParagraphs(mapApiParagraphsToEditor(res.data));
+          }
+        }
+      } catch {
+        // Keep empty content if fetch fails
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [universityId, defaultValues?.contentTables, defaultValues?.contentParagraphs]);
+
+  const goNext = async () => {
+    if (step === 0) {
+      const valid = await trigger(UNIVERSITY_STEP1_FIELDS);
+      if (!valid) {
+        toast.error('Please fill required university details');
+        return;
+      }
+    }
+    setStep((s) => Math.min(s + 1, UNIVERSITY_FORM_STEPS.length - 1));
+  };
+
+  const goBack = () => setStep((s) => Math.max(s - 1, 0));
+
   const submit = handleSubmit(async (data) => {
     await onSubmit({
       ...data,
@@ -371,8 +438,12 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
       banner: bannerFile || undefined,
       existingLogo: defaultValues?.logo || '',
       existingBanner: defaultValues?.banner || '',
+      contentTables,
+      contentParagraphs,
     });
   });
+
+  const isLastStep = step === UNIVERSITY_FORM_STEPS.length - 1;
 
   const filteredCompanies = companies.filter((c) => {
     const name = getCompanyKey(c).toLowerCase();
@@ -381,7 +452,16 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
   });
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+      }}
+      className="space-y-5"
+    >
+      <WizardStepIndicator steps={UNIVERSITY_FORM_STEPS} currentStep={step} />
+
+      {step === 0 && (
+      <>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField label="University Name *" error={errors.name?.message}>
           <input className="input" placeholder="e.g. Amity University" {...register('name', { required: 'University name is required' })} />
@@ -810,12 +890,52 @@ export default function UniversityForm({ defaultValues, onSubmit, loading, onCan
           )}
         />
       </FormField>
+      </>
+      )}
 
-      <div className="flex justify-end gap-3">
-        {onCancel && <button type="button" className="btn-secondary" onClick={onCancel}>Cancel</button>}
-        <button type="submit" className="btn-primary" disabled={loading}>
-          {loading ? 'Saving...' : defaultValues?.id ? 'Update University' : 'Save University'}
-        </button>
+      {step === 1 && (
+        <Step2ContentTables
+          contentTables={contentTables}
+          onContentTablesChange={setContentTables}
+        />
+      )}
+
+      {step === 2 && (
+        <Step3ContentParagraphs
+          contentParagraphs={contentParagraphs}
+          onContentParagraphsChange={setContentParagraphs}
+        />
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+        <div>
+          {onCancel && step === 0 && (
+            <button type="button" className="btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
+          {step > 0 && (
+            <button type="button" className="btn-secondary" onClick={goBack}>
+              Back
+            </button>
+          )}
+        </div>
+        <div className="flex gap-3">
+          {!isLastStep ? (
+            <button type="button" className="btn-primary" onClick={goNext}>
+              Next
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={loading}
+              onClick={submit}
+            >
+              {loading ? 'Saving...' : isEditing ? 'Update University' : 'Save University'}
+            </button>
+          )}
+        </div>
       </div>
     </form>
   );

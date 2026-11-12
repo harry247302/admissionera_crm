@@ -17,7 +17,11 @@ import Pagination from '../../components/education/Pagination';
 import Modal, { ConfirmDialog } from '../../components/common/Modal';
 import { SkeletonTable } from '../../components/common/LoadingSpinner';
 import EmptyState from '../../components/common/EmptyState';
-import { universityApprovalService, universityFaqService } from '../../services/educationService';
+import {
+  universityApprovalService,
+  universityFaqService,
+  universityContentTableService,
+} from '../../services/educationService';
 import { ENTITY_STATUSES, UNIVERSITY_TYPES, PAGE_SIZE, formatLabel } from '../../utils/educationConstants';
 
 export default function Universities() {
@@ -49,21 +53,35 @@ export default function Universities() {
     return () => clearTimeout(t);
   }, [dispatch, search, status, type, page]);
 
+  const persistUniversityTablesAndRows = async (universityId, data = {}) => {
+    if (!universityId) {
+      throw new Error('University UUID is required to save tables and rows');
+    }
+
+    if (Array.isArray(data.contentTables) && data.contentTables.length) {
+      await universityContentTableService.saveMany(universityId, data.contentTables);
+    }
+
+    if (Array.isArray(data.contentParagraphs) && data.contentParagraphs.length) {
+      await universityContentTableService.saveParagraphs(universityId, data.contentParagraphs);
+    }
+  };
+
   const handleCreate = async (data) => {
     try {
-      await dispatch(createUniversity(data)).unwrap();
+      const university = await dispatch(createUniversity(data)).unwrap();
+      const universityId = university?.uuid || university?.id;
+      await persistUniversityTablesAndRows(universityId, data);
       toast.success('University created');
       setShowForm(false);
       dispatch(fetchUniversities({ ...filters, page, limit: PAGE_SIZE, sortBy: 'name' }));
     } catch (err) {
-      toast.error(err);
+      toast.error(typeof err === 'string' ? err : err?.message || 'Failed to create university');
     }
   };
 
   const handleUpdate = async (data) => {
     const uuid = editItem?.uuid || editItem?.id;
-    console.log("++++++++++++",data)  
-    console.log("+++++++++++++++++++uuid+++++++++++++++",uuid)    
     if (!uuid) {
       toast.error('University UUID is required');
       return;
@@ -92,12 +110,16 @@ export default function Universities() {
         career: data.career ?? '',
         approvals: Array.isArray(data.approvals) ? data.approvals : (data.approvals ? [data.approvals] : []),
         companies: Array.isArray(data.companies) ? data.companies : (data.companies ? [data.companies] : []),
+        contentTables: Array.isArray(data.contentTables) ? data.contentTables : [],
+        contentParagraphs: Array.isArray(data.contentParagraphs) ? data.contentParagraphs : [],
       };
 
       const result = await dispatch(updateUniversity({
         id: uuid,
         data: payload,
       })).unwrap();
+
+      await persistUniversityTablesAndRows(uuid, payload);
 
       toast.success(result?.message || 'University updated successfully');
       setEditItem(null);

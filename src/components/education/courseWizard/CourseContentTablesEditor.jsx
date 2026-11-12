@@ -66,6 +66,7 @@ export const mapApiTablesToEditor = (tables = []) =>
             : (row.content || {});
           return {
             clientId: row.id || row.uuid || crypto.randomUUID(),
+            persisted: true,
             sortOrder: row.sort_order ?? rowIndex,
             cells: Object.fromEntries(columns.map((col) => [col, content[col] ?? ''])),
           };
